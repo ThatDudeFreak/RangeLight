@@ -284,13 +284,6 @@ export default function RangeLight() {
             </button>
           </div>
           
-          {/* Price Difference Warning - MADE SMALLER */}
-          <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
-            <span className="text-yellow-400">
-              <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
-            </span>
-          </div>
-          
           {/* Popular Pairs Quick Select */}
           <div className="mb-4">
             <p className="text-xs text-gray-400 mb-2">Popular pairs:</p>
@@ -348,6 +341,13 @@ export default function RangeLight() {
             </div>
           </div>
         </div>
+
+          {/* Price Difference Warning - MADE SMALLER */}
+          <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
+            <span className="text-yellow-400">
+              <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
+            </span>
+          </div>
 
         {/* Range Visualization */}
         <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6 border border-gray-700">
