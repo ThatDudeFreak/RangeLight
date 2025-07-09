@@ -457,67 +457,6 @@ export default function RangeLight() {
           </div>
         </div>
 
-        {/* Price Chart */}
-        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700">
-          <h2 className="text-base sm:text-lg font-semibold text-white mb-4">Price Ratio History</h2>
-          <div className="h-32 sm:h-40 relative">
-            {/* Chart background */}
-            <div className="absolute inset-0 bg-gray-900 rounded">
-              {/* Range boundary lines */}
-              <div className="absolute inset-x-0 border-t-2 border-dashed border-green-500/50" style={{ top: 0 }} />
-              <div className="absolute inset-x-0 border-t-2 border-dashed border-green-500/50" style={{ bottom: 0 }} />
-              
-              {/* Price line chart */}
-              <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke={isInRange ? "#10b981" : "#ef4444"}
-                  strokeWidth="2"
-                  points={priceHistory.slice(-60).map((price, index) => {
-                    const x = (index / 59) * 100;
-                    // Normalize price to 0-100% based on the range
-                    const y = 100 - ((price - minRange) / (maxRange - minRange)) * 100;
-                    // Clamp y between 0 and 100
-                    const clampedY = Math.max(0, Math.min(100, y));
-                    return `${x},${clampedY}`;
-                  }).join(' ')}
-                  style={{
-                    filter: isInRange ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))' : 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.6))'
-                  }}
-                />
-              </svg>
-              
-              {/* Y-axis labels */}
-              <div className="absolute left-0 top-0 -translate-x-full pr-2 text-xs text-gray-400">
-                {maxRange.toFixed(4)}
-              </div>
-              <div className="absolute left-0 bottom-0 -translate-x-full pr-2 text-xs text-gray-400">
-                {minRange.toFixed(4)}
-              </div>
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 text-xs text-gray-400">
-                {((maxRange + minRange) / 2).toFixed(4)}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-gray-400">
-            <span>2 min ago</span>
-            <span>1 min ago</span>
-            <span>Now</span>
-          </div>
-          
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-green-500"></div>
-              <span className="text-gray-400">Price</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 border-t-2 border-dashed border-green-500/50"></div>
-              <span className="text-gray-400">Range Bounds</span>
-            </div>
-          </div>
-        </div>
-
         {/* Stats */}
         <div className="mt-4 sm:mt-6 mb-8 grid grid-cols-3 gap-2 sm:gap-4">
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
