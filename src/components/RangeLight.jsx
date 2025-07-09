@@ -46,7 +46,7 @@ export default function RangeLight() {
   const [dexLinks] = useState([
     { name: 'Kittenswap', url: 'https://app.kittenswap.finance/', logo: '🐱' },
     { name: 'Hyperswap', url: 'https://app.hyperswap.exchange/#/swap?referral=Freak', logo: '⚡' },
-    { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🌊' },
+    { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🐉' },
     { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
     { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
   ]);
