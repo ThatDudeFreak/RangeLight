@@ -339,12 +339,12 @@ export default function RangeLight() {
                 {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
               </div>
             </div>
+          </div>
           {/* Price Difference Warning - MADE SMALLER */}
           <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
             <span className="text-yellow-400">
               <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
             </span>
-          </div>
           </div>
         </div>
 
