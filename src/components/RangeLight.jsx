@@ -212,7 +212,7 @@ export default function RangeLight() {
               
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                  🚦 RangeLight
+                  RangeLight
                 </h1>
                 <p className="text-gray-400 text-xs sm:text-sm">Real-time LP position monitor</p>
               </div>
