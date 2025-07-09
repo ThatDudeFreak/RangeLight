@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, ChevronDown, RefreshCw, Info } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, ChevronDown, RefreshCw } from 'lucide-react';
 
-export default function LPRangeTracker() {
+export default function RangeLight() {
   // State for position and prices
   const [currentPrice, setCurrentPrice] = useState(35.77);
   const [minRange, setMinRange] = useState(33.18);
@@ -50,13 +50,15 @@ export default function LPRangeTracker() {
     { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
     { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
   ]);
+
+  // Price feed configuration
   const [priceConfig] = useState({
     // Your price feed endpoint (UPDATE THIS with your actual endpoint)
-    priceFeedUrl: 'https://your-price-api.com/prices', // <-- ADD YOUR ENDPOINT HERE
+    priceFeedUrl: import.meta.env.VITE_PRICE_API_URL || 'https://your-price-api.com/prices',
     // Backup: RPC endpoint for fallback
-    rpcUrl: 'https://evmrpc-eu.hyperpc.app/cdbd4d94ff1b4cde839f8fa59126e200',
+    rpcUrl: import.meta.env.VITE_RPC_URL || 'https://evmrpc-eu.hyperpc.app/cdbd4d94ff1b4cde839f8fa59126e200',
     // Price update interval (ms)
-    updateInterval: 2000
+    updateInterval: parseInt(import.meta.env.VITE_UPDATE_INTERVAL) || 2000
   });
 
   // Function to fetch token prices from price feed
@@ -126,16 +128,16 @@ export default function LPRangeTracker() {
     const rangePercent = rangeWidth / currentPrice;
     
     // Adjust yellow zone based on range tightness
-    // Tight range (< 10% width): 3% buffer
-    // Medium range (10-20% width): 5% buffer  
-    // Wide range (> 20% width): 8% buffer
+    // Tight range (< 10% width): 5% buffer
+    // Medium range (10-20% width): 8% buffer  
+    // Wide range (> 20% width): 12% buffer
     let bufferPercent;
     if (rangePercent < 0.1) {
-      bufferPercent = 0.03; // 3% for tight ranges
+      bufferPercent = 0.05; // 5% for tight ranges
     } else if (rangePercent < 0.2) {
-      bufferPercent = 0.05; // 5% for medium ranges
+      bufferPercent = 0.08; // 8% for medium ranges
     } else {
-      bufferPercent = 0.08; // 8% for wide ranges
+      bufferPercent = 0.12; // 12% for wide ranges
     }
     
     const rangeBuffer = rangeWidth * bufferPercent;
@@ -283,12 +285,10 @@ export default function LPRangeTracker() {
           </div>
           
           {/* Price Difference Warning */}
-          <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-600 rounded-lg flex items-start gap-2">
-            <Info className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-            <div className="text-yellow-400 text-sm">
-              <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. 
-              Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
-            </div>
+          <div className="mb-3 p-2 bg-yellow-900/20 border border-yellow-600 rounded-lg">
+            <p className="text-yellow-400 text-xs">
+              <strong>Note:</strong> Uses global token prices, not DEX pool prices. Actual prices may differ.
+            </p>
           </div>
           
           {/* Popular Pairs Quick Select */}
@@ -451,16 +451,16 @@ export default function LPRangeTracker() {
           <div className="mt-4 text-xs text-gray-400 text-center">
             Range Width: {((maxRange - minRange) / currentPrice * 100).toFixed(1)}% | 
             Yellow Zone: {
-              ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 3%' :
-              ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 5%' : ' 8%'
+              ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 5%' :
+              ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 8%' : ' 12%'
             } from edges
           </div>
         </div>
 
         {/* Price Chart */}
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h2 className="text-lg font-semibold text-white mb-4">Price Ratio History</h2>
-          <div className="h-32 flex items-end gap-1">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700">
+          <h2 className="text-base sm:text-lg font-semibold text-white mb-4">Price Ratio History</h2>
+          <div className="h-24 sm:h-32 flex items-end gap-0.5 sm:gap-1">
             {priceHistory.slice(-30).map((price, index) => {
               const height = ((price - Math.min(...priceHistory.slice(-30))) / 
                             (Math.max(...priceHistory.slice(-30)) - Math.min(...priceHistory.slice(-30)))) * 100;
@@ -483,40 +483,33 @@ export default function LPRangeTracker() {
           </div>
         </div>
 
-        {/* Setup Instructions */}
-        <div className="mt-6 bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4">Setup Instructions</h3>
-          <div className="space-y-3 text-sm text-gray-300">
-            <div className="flex items-start gap-2">
-              <span className="text-green-400">1.</span>
-              <div>
-                <strong>Connect Price Feed:</strong> Add your price API endpoint that returns USD prices for the tokens.
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-green-400">2.</span>
-              <div>
-                <strong>Select Your Pair:</strong> Choose any two tokens from the dropdowns to create your custom pair.
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-green-400">3.</span>
-              <div>
-                <strong>Set Your Range:</strong> Input your LP position's min and max ratio values.
-              </div>
+        {/* Stats */}
+        <div className="mt-4 sm:mt-6 mb-8 grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
+            <div className="text-xs sm:text-sm text-gray-400">Position Status</div>
+            <div className={`text-sm sm:text-lg font-semibold ${isInRange ? 'text-green-400' : 'text-red-400'}`}>
+              {isInRange ? 'IN RANGE' : 'OUT OF RANGE'}
             </div>
           </div>
-          
-          <div className="mt-4 p-3 bg-gray-900 rounded-lg">
-            <code className="text-xs text-gray-400">
-              // Example price feed response format:<br/>
-              {`{
-  "0xda3aaae38ee71382ee091c7a4978491f39bf851d": { "usd": 0.00234 },  // UFART
-  "0x5555555555555555555555555555555555555555": { "usd": 45.67 }     // HYPE
-}`}
-            </code>
+          <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
+            <div className="text-xs sm:text-sm text-gray-400">Range Width</div>
+            <div className="text-sm sm:text-lg font-semibold text-white">
+              {(maxRange - minRange).toFixed(4)}
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
+            <div className="text-xs sm:text-sm text-gray-400">24h Change</div>
+            <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
       </div>
     </div>
   );
