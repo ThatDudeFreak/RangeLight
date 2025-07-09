@@ -417,8 +417,8 @@ export default function RangeLight() {
             {/* Range labels */}
             <div className="flex justify-between mt-2">
               <span className="text-sm text-gray-400">{minRange.toFixed(4)}</span>
-              <span className="text-sm text-gray-400">MIN</span>
-              <span className="text-sm text-gray-400">MAX</span>
+              <span className="text-sm text-gray-400"></span>
+              <span className="text-sm text-gray-400"></span>
               <span className="text-sm text-gray-400">{maxRange.toFixed(4)}</span>
             </div>
           </div>
