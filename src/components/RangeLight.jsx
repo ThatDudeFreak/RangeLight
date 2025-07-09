@@ -461,17 +461,8 @@ export default function RangeLight() {
         <div className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700">
           <h2 className="text-base sm:text-lg font-semibold text-white mb-4">Price Ratio History</h2>
           <div className="h-32 sm:h-40 relative">
-            {/* Chart background with range zones */}
+            {/* Chart background */}
             <div className="absolute inset-0 bg-gray-900 rounded">
-              {/* Safe zone (middle) */}
-              <div 
-                className="absolute inset-x-0 bg-green-900/20" 
-                style={{
-                  top: '20%',
-                  bottom: '20%'
-                }}
-              />
-              
               {/* Range boundary lines */}
               <div className="absolute inset-x-0 border-t-2 border-dashed border-green-500/50" style={{ top: 0 }} />
               <div className="absolute inset-x-0 border-t-2 border-dashed border-green-500/50" style={{ bottom: 0 }} />
@@ -494,19 +485,6 @@ export default function RangeLight() {
                     filter: isInRange ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.6))' : 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.6))'
                   }}
                 />
-                
-                {/* Current price dot */}
-                {priceHistory.length > 0 && (
-                  <circle
-                    cx="100"
-                    cy={Math.max(0, Math.min(100, 100 - ((priceHistory[priceHistory.length - 1] - minRange) / (maxRange - minRange)) * 100))}
-                    r="4"
-                    fill={isInRange ? "#10b981" : "#ef4444"}
-                    style={{
-                      filter: isInRange ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' : 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
-                    }}
-                  />
-                )}
               </svg>
               
               {/* Y-axis labels */}
