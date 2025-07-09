@@ -54,11 +54,11 @@ export default function RangeLight() {
   // Price feed configuration
   const [priceConfig] = useState({
     // Your price feed endpoint (UPDATE THIS with your actual endpoint)
-    priceFeedUrl: import.meta.env.VITE_PRICE_API_URL || 'https://your-price-api.com/prices',
+    priceFeedUrl: 'https://your-price-api.com/prices',
     // Backup: RPC endpoint for fallback
-    rpcUrl: import.meta.env.VITE_RPC_URL || 'https://evmrpc-eu.hyperpc.app/cdbd4d94ff1b4cde839f8fa59126e200',
+    rpcUrl: 'https://evmrpc-eu.hyperpc.app/cdbd4d94ff1b4cde839f8fa59126e200',
     // Price update interval (ms)
-    updateInterval: parseInt(import.meta.env.VITE_UPDATE_INTERVAL) || 2000
+    updateInterval: 2000
   });
 
   // Function to fetch token prices from price feed
@@ -123,21 +123,21 @@ export default function RangeLight() {
     const inRange = currentPrice >= minRange && currentPrice <= maxRange;
     setIsInRange(inRange);
     
-    // Dynamic sensitivity based on range width
+    // Dynamic sensitivity based on range width - INCREASED SENSITIVITY
     const rangeWidth = maxRange - minRange;
     const rangePercent = rangeWidth / currentPrice;
     
-    // Adjust yellow zone based on range tightness
-    // Tight range (< 10% width): 5% buffer
-    // Medium range (10-20% width): 8% buffer  
-    // Wide range (> 20% width): 12% buffer
+    // Increased yellow zone sensitivity
+    // Tight range (< 10% width): 10% buffer (was 5%)
+    // Medium range (10-20% width): 15% buffer (was 8%)
+    // Wide range (> 20% width): 20% buffer (was 12%)
     let bufferPercent;
     if (rangePercent < 0.1) {
-      bufferPercent = 0.05; // 5% for tight ranges
+      bufferPercent = 0.10; // 10% for tight ranges
     } else if (rangePercent < 0.2) {
-      bufferPercent = 0.08; // 8% for medium ranges
+      bufferPercent = 0.15; // 15% for medium ranges
     } else {
-      bufferPercent = 0.12; // 12% for wide ranges
+      bufferPercent = 0.20; // 20% for wide ranges
     }
     
     const rangeBuffer = rangeWidth * bufferPercent;
@@ -284,11 +284,11 @@ export default function RangeLight() {
             </button>
           </div>
           
-          {/* Price Difference Warning */}
-          <div className="mb-3 p-2 bg-yellow-900/20 border border-yellow-600 rounded-lg">
-            <p className="text-yellow-400 text-xs">
-              <strong>Note:</strong> Uses global token prices, not DEX pool prices. Actual prices may differ.
-            </p>
+          {/* Price Difference Warning - MADE SMALLER */}
+          <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
+            <span className="text-yellow-400">
+              <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
+            </span>
           </div>
           
           {/* Popular Pairs Quick Select */}
@@ -447,12 +447,12 @@ export default function RangeLight() {
             </div>
           </div>
           
-          {/* Sensitivity Indicator */}
+          {/* Sensitivity Indicator - UPDATED WITH NEW VALUES */}
           <div className="mt-4 text-xs text-gray-400 text-center">
             Range Width: {((maxRange - minRange) / currentPrice * 100).toFixed(1)}% | 
             Yellow Zone: {
-              ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 5%' :
-              ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 8%' : ' 12%'
+              ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 10%' :
+              ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 15%' : ' 20%'
             } from edges
           </div>
         </div>
@@ -504,12 +504,6 @@ export default function RangeLight() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-
       </div>
     </div>
   );
