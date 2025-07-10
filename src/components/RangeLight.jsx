@@ -1,8 +1,86 @@
-// Get available token pairs based on existing pools
+import React, { useState, useEffect, useRef } from 'react';
+import { AlertCircle, TrendingUp, TrendingDown, ChevronDown, RefreshCw } from 'lucide-react';
+
+export default function RangeLight() {
+  // Pool addresses for direct DEX data (Hyperswap & Hybra)
+  const [poolAddresses] = useState({
+    // Hyperswap pools
+    'WHYPE/USDT': '0x3603ffebb994cc110b4186040cac3005b2cf4465',
+    'WHYPE/USDHL': '0xf47882f97becd8476ba7b37f737824ca63c7d643',
+    'WHYPE/UBTC': '0x43779f5e56720fbd7f99a18ca4b625838bec934c',
+    'WHYPE/UETH': '0xa90d4bc085ff2304f786f9f1633f3cd508182aca',
+    'LIQD/WHYPE': '0xacf4788f95acb78863edf5703cd57f839514c5d0',
+    // Hybra pools
+    'UFART/WHYPE': '0x54363f140fd753ffcd64886ae2086e208eec2249',
+    'USOL/WHYPE': '0xae738002475bcdebf137c8da218973dea9d5f2de',
+    'BUDDY/WHYPE': '0x813f1d0182b4f832449df1f9426930bfea82725b',
+    'WHLP/WHYPE': '0x761819512f4b156944606849b1555822b45bdae5',
+    'WHYPE/RUB': '0x33a5b9fc5a386cd29868e5f1d19277ad02d119b4',
+    'WHYPE/XAUTO': '0x91522dfddb5e5831a889326426373fb894ec37b1',
+    'WHYPE/KITTEN': '0xf2cd2e2f7446f308174e4c67e0ab42200d4c00a4',
+  });
+
+  // State for position and prices
+  const [currentPrice, setCurrentPrice] = useState(1.00);
+  const [minRange, setMinRange] = useState(0.98);
+  const [maxRange, setMaxRange] = useState(1.02);
+  const [priceHistory, setPriceHistory] = useState([1.00]);
+  const [isInRange, setIsInRange] = useState(true);
+  const [nearEdgeWarning, setNearEdgeWarning] = useState(false);
+  const [selectedToken0, setSelectedToken0] = useState('UFART');
+  const [selectedToken1, setSelectedToken1] = useState('WHYPE');
+  const [loading, setLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [token0Price, setToken0Price] = useState(0);
+  const [token1Price, setToken1Price] = useState(0);
+  const [trafficLight, setTrafficLight] = useState('green');
+  const [usePoolData, setUsePoolData] = useState(false);
+  
+  const [availableTokens] = useState({
+    'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
+    'LHYPE': { symbol: 'LHYPE', address: '0x5748ae796ae46a4f1348a1693de4b50560485562', decimals: 18 },
+    'UBTC': { symbol: 'UBTC', address: '0x9fdbda0a5e284c32744d2f17ee5c74b284993463', decimals: 18 },
+    'USOL': { symbol: 'USOL', address: '0x068f321fa8fb9f0d135f290ef6a3e2813e1c8a29', decimals: 18 },
+    'UFART': { symbol: 'UFART', address: '0xda3aaae38ee71382ee091c7a4978491f39bf851d', decimals: 18 },
+    'USDT': { symbol: 'USDT', address: '0xbf2d3b1a37d54ce86d0e1455884da875a97c87a8', decimals: 18 },
+    'USDHL': { symbol: 'USDHL', address: '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5', decimals: 18 },
+    'PIP': { symbol: 'PIP', address: '0x1bee6762f0b522c606dc2ffb106c0bb391b2e309', decimals: 18 },
+    'BUDDY': { symbol: 'BUDDY', address: '0x47bb061c0204af921f43dc73c7d7768d2672ddee', decimals: 18 },
+    'LIQD': { symbol: 'LIQD', address: '0x1ecd15865d7f8019d546f76d095d9c93cc34edfa', decimals: 18 },
+    'KITTEN': { symbol: 'KITTEN', address: '0x618275F8EFE54c2afa87bfB9F210A52F0fF89364', decimals: 18 },
+    'feUSD': { symbol: 'feUSD', address: '0x02c6a2fa58cc01a18b8d9e00ea48d65e4df26c70', decimals: 18 },
+    'USDe': { symbol: 'USDe', address: '0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34', decimals: 18 },
+    'PURR': { symbol: 'PURR', address: '0x9b498c3c8a0b8cd8ba1d9851d40d186f1872b44e', decimals: 18 },
+    'USDXL': { symbol: 'USDXL', address: '0xca79db4b49f608ef54a5cb813fbed3a6387bc645', decimals: 18 },
+    'WHLP': { symbol: 'WHLP', address: '0x1359b05241ca5076c9f59605214f4f84114c0de8', decimals: 18 },
+    'HFUN': { symbol: 'HFUN', address: '0xa320d9f65ec992eff38622c63627856382db726c', decimals: 18 },
+    'RUB': { symbol: 'RUB', address: '0x7dcffcb06b40344eeced2d1cbf096b299fe4b405', decimals: 18 },
+    'UETH': { symbol: 'UETH', address: '0xbe6727b535545c67d5caa73dea54865b92cf7907', decimals: 18 },
+    'MHYPE': { symbol: 'MHYPE', address: '0xdabb040c428436d41cecd0fb06bcfdbaad3a9aa8', decimals: 18 },
+    'WHYPE': { symbol: 'WHYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
+    'XAUTO': { symbol: 'XAUTO', address: '0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949', decimals: 18 }
+  });
+
+  // DEX links configuration
+  const [dexLinks] = useState([
+    { name: 'Kittenswap', url: 'https://app.kittenswap.finance/', logo: '🐱' },
+    { name: 'Hyperswap', url: 'https://app.hyperswap.exchange/#/swap?referral=Freak', logo: '⚡' },
+    { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🐉' },
+    { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
+    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
+  ]);
+
+  // Price feed configuration
+  const [priceConfig] = useState({
+    priceFeedUrl: 'https://coins.llama.fi/prices/current',
+    rpcUrl: 'https://evmrpc-jp.hyperpc.app/6043a2905bbc4765ba3dd43fabe4eec0?apikey=BRExesZrDWsu0LErgac2s6jTpSOa7UeZ',
+    updateInterval: 2000
+  });
+
+  // Get available token pairs based on existing pools
   const getAvailableTokensForPair = (selectedToken) => {
     const availablePairs = [];
     
-    // Check all pool combinations
     Object.keys(poolAddresses).forEach(poolPair => {
       const [token0, token1] = poolPair.split('/');
       
@@ -13,7 +91,7 @@
       }
     });
     
-    return availablePairs;
+    return [...new Set(availablePairs)]; // Remove duplicates
   };
   
   // Get all tokens that have pools
@@ -37,306 +115,13 @@
   const currentPoolKey = `${selectedToken0}/${selectedToken1}`;
   const reversePoolKey = `${selectedToken1}/${selectedToken0}`;
   const hasPool = poolAddresses.hasOwnProperty(currentPoolKey) || poolAddresses.hasOwnProperty(reversePoolKey);
-  const actualPoolKey = poolAddresses.hasOwnProperty(currentPoolKey) ? currentPoolKey : reversePoolKey;import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, ChevronDown, RefreshCw } from 'lucide-react';
+  const actualPoolKey = poolAddresses.hasOwnProperty(currentPoolKey) ? currentPoolKey : reversePoolKey;
 
-export default function RangeLight() {
-  // State for position and prices
-  const [currentPrice, setCurrentPrice] = useState(1.00);
-  const [minRange, setMinRange] = useState(0.90);
-  const [maxRange, setMaxRange] = useState(1.10);
-  const [priceHistory, setPriceHistory] = useState([1.00]);
-  const [isInRange, setIsInRange] = useState(true);
-  const [nearEdgeWarning, setNearEdgeWarning] = useState(false);
-  const [selectedToken0, setSelectedToken0] = useState('UFART');
-  const [selectedToken1, setSelectedToken1] = useState('WHYPE');
-  const [loading, setLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [token0Price, setToken0Price] = useState(0);
-  const [token1Price, setToken1Price] = useState(0);
-  const [trafficLight, setTrafficLight] = useState('green'); // green, yellow, red
-  const [usePoolData, setUsePoolData] = useState(false); // Toggle for pool vs DeFiLlama
-  
-  // Pool addresses for direct DEX data (Hyperswap & Hybra)
-  const [poolAddresses] = useState({
-    // Hyperswap pools
-    'WHYPE/USDT': '0x3603ffebb994cc110b4186040cac3005b2cf4465',  // Changed from USDTO to USDT
-    'WHYPE/USDHL': '0xf47882f97becd8476ba7b37f737824ca63c7d643',
-    'WHYPE/UBTC': '0x43779f5e56720fbd7f99a18ca4b625838bec934c',
-    'WHYPE/UETH': '0xa90d4bc085ff2304f786f9f1633f3cd508182aca',
-    'LIQD/WHYPE': '0xacf4788f95acb78863edf5703cd57f839514c5d0',
-    // Hybra pools
-    'UFART/WHYPE': '0x54363f140fd753ffcd64886ae2086e208eec2249',
-    'USOL/WHYPE': '0xae738002475bcdebf137c8da218973dea9d5f2de',
-    'BUDDY/WHYPE': '0x813f1d0182b4f832449df1f9426930bfea82725b',
-    'WHLP/WHYPE': '0x761819512f4b156944606849b1555822b45bdae5',
-    'WHYPE/RUB': '0x33a5b9fc5a386cd29868e5f1d19277ad02d119b4',
-    'WHYPE/XAUTO': '0x91522dfddb5e5831a889326426373fb894ec37b1',
-    'WHYPE/KITTEN': '0xf2cd2e2f7446f308174e4c67e0ab42200d4c00a4',
-    // Add more verified pools here as we find them
-    // Format: 'TOKEN0/TOKEN1': '0x...' 
-    // To find pool addresses, check transactions on Hyperscan or Purrsec
-  });
-  // Get available token pairs based on existing pools
-  const getAvailableTokensForPair = (selectedToken) => {
-    const availablePairs = [];
-    
-    // Check all pool combinations
-    Object.keys(poolAddresses).forEach(poolPair => {
-      const [token0, token1] = poolPair.split('/');
-      
-      if (token0 === selectedToken) {
-        availablePairs.push(token1);
-      } else if (token1 === selectedToken) {
-        availablePairs.push(token0);
-      }
-    });
-    
-    return availablePairs;
-  };
-  
-  // Get all tokens that have pools
-  const getTokensWithPools = () => {
-    const tokensSet = new Set();
-    
-    Object.keys(poolAddresses).forEach(poolPair => {
-      const [token0, token1] = poolPair.split('/');
-      tokensSet.add(token0);
-      tokensSet.add(token1);
-    });
-    
-    return Array.from(tokensSet);
-  };
-  
-  const tokensWithPools = getTokensWithPools();
-  const availableForToken0 = selectedToken1 ? getAvailableTokensForPair(selectedToken1) : tokensWithPools;
-  // Check if current pair has a pool
-  const currentPoolKey = `${selectedToken0}/${selectedToken1}`;
-  const hasPool = poolAddresses.hasOwnProperty(currentPoolKey);
-  
-  // Pool addresses for direct DEX data (Hyperswap & Hybra)
-  const [poolAddresses] = useState({
-    // Hyperswap pools
-    'WHYPE/USDTO': '0x3603ffebb994cc110b4186040cac3005b2cf4465',
-    'WHYPE/USDHL': '0xf47882f97becd8476ba7b37f737824ca63c7d643',
-    'WHYPE/UBTC': '0x43779f5e56720fbd7f99a18ca4b625838bec934c',
-    'WHYPE/UETH': '0xa90d4bc085ff2304f786f9f1633f3cd508182aca',
-    'LIQD/WHYPE': '0xacf4788f95acb78863edf5703cd57f839514c5d0',
-    // Hybra pools
-    'UFART/WHYPE': '0x54363f140fd753ffcd64886ae2086e208eec2249',
-    'USOL/WHYPE': '0xae738002475bcdebf137c8da218973dea9d5f2de',
-    'BUDDY/WHYPE': '0x813f1d0182b4f832449df1f9426930bfea82725b',
-    'WHLP/WHYPE': '0x761819512f4b156944606849b1555822b45bdae5',
-    'WHYPE/RUB': '0x33a5b9fc5a386cd29868e5f1d19277ad02d119b4',
-    'WHYPE/XAUTO': '0x91522dfddb5e5831a889326426373fb894ec37b1',
-    'WHYPE/KITTEN': '0xf2cd2e2f7446f308174e4c67e0ab42200d4c00a4',
-    // Add more verified pools here as we find them
-    // Format: 'TOKEN0/TOKEN1': '0x...' 
-    // To find pool addresses, check transactions on Hyperscan or Purrsec
-  });
-  
-  // Function to identify pool tokens
-  const identifyPool = async (poolAddress) => {
-    try {
-      // Get token0
-      const token0Response = await fetch(priceConfig.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_call',
-          params: [{
-            to: poolAddress,
-            data: '0x0dfe1681' // token0()
-          }, 'latest']
-        })
-      });
-      
-      // Get token1
-      const token1Response = await fetch(priceConfig.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'eth_call',
-          params: [{
-            to: poolAddress,
-            data: '0xd21220a7' // token1()
-          }, 'latest']
-        })
-      });
-      
-      const token0Data = await token0Response.json();
-      const token1Data = await token1Response.json();
-      
-      if (token0Data.result && token1Data.result) {
-        // Remove 0x and pad addresses
-        const token0 = '0x' + token0Data.result.slice(-40);
-        const token1 = '0x' + token1Data.result.slice(-40);
-        
-        console.log(`Pool ${poolAddress}:`);
-        console.log(`Token0: ${token0}`);
-        console.log(`Token1: ${token1}`);
-        
-        // Find token names from our list
-        const token0Name = Object.entries(availableTokens).find(([_, data]) => 
-          data.address.toLowerCase() === token0.toLowerCase()
-        )?.[0] || 'Unknown';
-        
-        const token1Name = Object.entries(availableTokens).find(([_, data]) => 
-          data.address.toLowerCase() === token1.toLowerCase()
-        )?.[0] || 'Unknown';
-        
-        console.log(`Pair: ${token0Name}/${token1Name}`);
-        return { token0, token1, token0Name, token1Name };
-      }
-    } catch (error) {
-      console.error('Error identifying pool:', error);
-    }
-  };
-  
-  // Hyperswap factory
-  const HYPERSWAP_FACTORY = '0x6eDA206207c09e5428F281761DdC0D300851fBC8';
-  
-  // Basic pool ABI for reading reserves
-  const POOL_ABI = [
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "getReserves",
-      "outputs": [
-        {"name": "_reserve0", "type": "uint112"},
-        {"name": "_reserve1", "type": "uint112"},
-        {"name": "_blockTimestampLast", "type": "uint32"}
-      ],
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "token0",
-      "outputs": [{"name": "", "type": "address"}],
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "token1",
-      "outputs": [{"name": "", "type": "address"}],
-      "type": "function"
-    }
-  ];
-  const [availableTokens] = useState({
-    'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
-    'LHYPE': { symbol: 'LHYPE', address: '0x5748ae796ae46a4f1348a1693de4b50560485562', decimals: 18 },
-    'UBTC': { symbol: 'UBTC', address: '0x9fdbda0a5e284c32744d2f17ee5c74b284993463', decimals: 18 },
-    'USOL': { symbol: 'USOL', address: '0x068f321fa8fb9f0d135f290ef6a3e2813e1c8a29', decimals: 18 },
-    'UFART': { symbol: 'UFART', address: '0xda3aaae38ee71382ee091c7a4978491f39bf851d', decimals: 18 },
-    'USDT': { symbol: 'USDT', address: '0xbf2d3b1a37d54ce86d0e1455884da875a97c87a8', decimals: 18 },
-    'USDHL': { symbol: 'USDHL', address: '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5', decimals: 18 },
-    'PIP': { symbol: 'PIP', address: '0x1bee6762f0b522c606dc2ffb106c0bb391b2e309', decimals: 18 },
-    'BUDDY': { symbol: 'BUDDY', address: '0x47bb061c0204af921f43dc73c7d7768d2672ddee', decimals: 18 },
-    'LIQD': { symbol: 'LIQD', address: '0x1ecd15865d7f8019d546f76d095d9c93cc34edfa', decimals: 18 },
-    'KITTEN': { symbol: 'KITTEN', address: '0x618275F8EFE54c2afa87bfB9F210A52F0fF89364', decimals: 18 },
-    'feUSD': { symbol: 'feUSD', address: '0x02c6a2fa58cc01a18b8d9e00ea48d65e4df26c70', decimals: 18 },
-    'USDe': { symbol: 'USDe', address: '0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34', decimals: 18 },
-    'PURR': { symbol: 'PURR', address: '0x9b498c3c8a0b8cd8ba1d9851d40d186f1872b44e', decimals: 18 },
-    'USDXL': { symbol: 'USDXL', address: '0xca79db4b49f608ef54a5cb813fbed3a6387bc645', decimals: 18 },
-    'WHLP': { symbol: 'WHLP', address: '0x1359b05241ca5076c9f59605214f4f84114c0de8', decimals: 18 },
-    'HFUN': { symbol: 'HFUN', address: '0xa320d9f65ec992eff38622c63627856382db726c', decimals: 18 },
-    'RUB': { symbol: 'RUB', address: '0x7dcffcb06b40344eeced2d1cbf096b299fe4b405', decimals: 18 },
-    'UETH': { symbol: 'UETH', address: '0xbe6727b535545c67d5caa73dea54865b92cf7907', decimals: 18 },
-    'MHYPE': { symbol: 'MHYPE', address: '0xdabb040c428436d41cecd0fb06bcfdbaad3a9aa8', decimals: 18 },
-    'WHYPE': { symbol: 'WHYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 }, // Note: Same as HYPE
-    'XAUTO': { symbol: 'XAUTO', address: '0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949', decimals: 18 } // "Liquid Gold"
-  });
-
-  // DEX links configuration
-  const [dexLinks] = useState([
-    { name: 'Kittenswap', url: 'https://app.kittenswap.finance/', logo: '🐱' },
-    { name: 'Hyperswap', url: 'https://app.hyperswap.exchange/#/swap?referral=Freak', logo: '⚡' },
-    { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🐉' },
-    { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
-    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
-  ]);
-
-  // Price feed configuration
-  const [priceConfig] = useState({
-    // DeFiLlama price API (free, no rate limits)
-    priceFeedUrl: 'https://coins.llama.fi/prices/current',
-    // Hyperliquid RPC endpoint (can also fetch pool data)
-    rpcUrl: 'https://evmrpc-jp.hyperpc.app/6043a2905bbc4765ba3dd43fabe4eec0?apikey=BRExesZrDWsu0LErgac2s6jTpSOa7UeZ',
-    // Price update interval (ms)
-    updateInterval: 2000
-  });
-
-  // Function to analyze a transaction to find pool info
-  const analyzeTransaction = async (txHash) => {
-    try {
-      const response = await fetch(priceConfig.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_getTransactionReceipt',
-          params: [txHash]
-        })
-      });
-      
-      const data = await response.json();
-      if (data.result) {
-        console.log('Transaction details:', data.result);
-        console.log('Contract interacted with:', data.result.to);
-        console.log('Logs:', data.result.logs);
-        // Look for Swap events or pool interactions in logs
-        return data.result;
-      }
-    } catch (error) {
-      console.error('Error analyzing transaction:', error);
-    }
-  };
-
-  // Function to fetch pool data directly from DEX
-  const fetchPoolData = async (poolAddress) => {
-    try {
-      const calls = [
-        {
-          to: poolAddress,
-          data: '0x0902f1ac' // getReserves() function selector
-        },
-        {
-          to: poolAddress,
-          data: '0x0dfe1681' // token0() function selector
-        },
-        {
-          to: poolAddress,
-          data: '0xd21220a7' // token1() function selector
-        }
-      ];
-      
-      const response = await fetch(priceConfig.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_call',
-          params: [calls[0], 'latest']
-        })
-      });
-      
-      const data = await response.json();
-      console.log('Pool data:', data);
-      
-      // This would return reserves which we can use to calculate actual pool ratio
-      // For now, we'll continue using DeFiLlama prices
-      
-    } catch (error) {
-      console.error('Error fetching pool data:', error);
-    }
+  // Function to set aggressive 2% range
+  const setAggressiveRange = (price) => {
+    const rangePercent = 0.02; // 2%
+    setMinRange(price * (1 - rangePercent));
+    setMaxRange(price * (1 + rangePercent));
   };
 
   // Function to fetch pool reserves and calculate ratio directly
@@ -347,7 +132,6 @@ export default function RangeLight() {
       const poolAddress = poolAddresses[actualPoolKey];
       const isReversed = actualPoolKey === reversePoolKey;
       
-      // Get reserves
       const response = await fetch(priceConfig.rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -364,75 +148,74 @@ export default function RangeLight() {
       
       const data = await response.json();
       if (data.result) {
-        // Decode reserves (first 64 chars after 0x = reserve0, next 64 = reserve1)
-        // Parse as hex strings
         const reserve0Hex = data.result.slice(2, 66);
         const reserve1Hex = data.result.slice(66, 130);
         
-        // Convert to numbers (may lose precision for very large numbers)
-        const reserve0 = parseInt(reserve0Hex, 16) / 1e18; // Assume 18 decimals
-        const reserve1 = parseInt(reserve1Hex, 16) / 1e18; // Assume 18 decimals
+        const reserve0 = parseInt(reserve0Hex, 16) / 1e18;
+        const reserve1 = parseInt(reserve1Hex, 16) / 1e18;
         
-        // Calculate ratio
         const ratio = isReversed 
           ? reserve1 / reserve0 
           : reserve0 / reserve1;
+        
         setCurrentPrice(ratio);
         setPriceHistory(prev => [...prev.slice(-50), ratio]);
         setConnectionStatus('pool');
+        
+        // Set aggressive range on first load or pair change
+        if (priceHistory.length === 1) {
+          setAggressiveRange(ratio);
+        }
         
         console.log('Pool reserves:', { reserve0, reserve1, ratio, isReversed });
       }
     } catch (error) {
       console.error('Error fetching pool data:', error);
-      // Fall back to DeFiLlama
       fetchTokenPrices();
     }
   };
 
-  // Function to fetch token prices from price feed
-  // Note: Pool reserves give us ratios, but we still need USD prices from DeFiLlama
-  // to show dollar values. Pool ratio = token0_reserves / token1_reserves
+  // Function to fetch token prices from DeFiLlama
   const fetchTokenPrices = async () => {
     try {
       setLoading(true);
       const token0Data = availableTokens[selectedToken0];
       const token1Data = availableTokens[selectedToken1];
       
-      // Fetch from DeFiLlama API
-      try {
-        // Construct the token identifiers for DeFiLlama
-        const tokens = [
-          `hyperliquid:${token0Data.address.toLowerCase()}`,
-          `hyperliquid:${token1Data.address.toLowerCase()}`
-        ].join(',');
+      if (!token0Data || !token1Data) {
+        console.error('Token data not found');
+        return;
+      }
+      
+      const tokens = [
+        `hyperliquid:${token0Data.address.toLowerCase()}`,
+        `hyperliquid:${token1Data.address.toLowerCase()}`
+      ].join(',');
+      
+      const response = await fetch(`${priceConfig.priceFeedUrl}/${tokens}`);
+      const data = await response.json();
+      
+      const token0Key = `hyperliquid:${token0Data.address.toLowerCase()}`;
+      const token1Key = `hyperliquid:${token1Data.address.toLowerCase()}`;
+      
+      const price0 = data.coins?.[token0Key]?.price || 0;
+      const price1 = data.coins?.[token1Key]?.price || 0;
+      
+      setToken0Price(price0);
+      setToken1Price(price1);
+      
+      if (price1 > 0) {
+        const ratio = price0 / price1;
+        setCurrentPrice(ratio);
+        setPriceHistory(prev => [...prev.slice(-50), ratio]);
+        setConnectionStatus('connected');
         
-        const response = await fetch(`${priceConfig.priceFeedUrl}/${tokens}`);
-        const data = await response.json();
-        
-        // Extract prices from DeFiLlama response format
-        const token0Key = `hyperliquid:${token0Data.address.toLowerCase()}`;
-        const token1Key = `hyperliquid:${token1Data.address.toLowerCase()}`;
-        
-        const price0 = data.coins?.[token0Key]?.price || 0;
-        const price1 = data.coins?.[token1Key]?.price || 0;
-        
-        setToken0Price(price0);
-        setToken1Price(price1);
-        
-        // Calculate ratio (token0/token1)
-        if (price1 > 0) {
-          const ratio = price0 / price1;
-          setCurrentPrice(ratio);
-          setPriceHistory(prev => [...prev.slice(-50), ratio]);
-          setConnectionStatus('connected');
-        } else {
-          console.error('Unable to calculate ratio - token prices not available');
-          setConnectionStatus('error');
+        // Set aggressive range on first load or pair change
+        if (priceHistory.length === 1) {
+          setAggressiveRange(ratio);
         }
-        
-      } catch (apiError) {
-        console.error('DeFiLlama API error:', apiError);
+      } else {
+        console.error('Unable to calculate ratio - token prices not available');
         setConnectionStatus('error');
       }
     } catch (error) {
@@ -442,6 +225,13 @@ export default function RangeLight() {
       setLoading(false);
     }
   };
+
+  // Reset price history and set aggressive range when pair changes
+  useEffect(() => {
+    setPriceHistory([1.00]);
+    setCurrentPrice(1.00);
+    // Range will be set when price is fetched
+  }, [selectedToken0, selectedToken1]);
 
   // Price update loop
   useEffect(() => {
@@ -463,33 +253,22 @@ export default function RangeLight() {
     
     return () => clearInterval(interval);
   }, [selectedToken0, selectedToken1, usePoolData]);
-  
-  // Identify unknown pool on load (temporary for debugging)
-  useEffect(() => {
-    // Uncomment to identify the pool
-    // identifyPool('0x97a4f83a383b560b92f7c6a80056abdca4495ef2');
-  }, []);
 
   // Check if in range with dynamic sensitivity
   useEffect(() => {
     const inRange = currentPrice >= minRange && currentPrice <= maxRange;
     setIsInRange(inRange);
     
-    // Dynamic sensitivity based on range width - INCREASED SENSITIVITY
     const rangeWidth = maxRange - minRange;
     const rangePercent = rangeWidth / currentPrice;
     
-    // Increased yellow zone sensitivity
-    // Tight range (< 10% width): 10% buffer (was 5%)
-    // Medium range (10-20% width): 15% buffer (was 8%)
-    // Wide range (> 20% width): 20% buffer (was 12%)
     let bufferPercent;
     if (rangePercent < 0.1) {
-      bufferPercent = 0.10; // 10% for tight ranges
+      bufferPercent = 0.10;
     } else if (rangePercent < 0.2) {
-      bufferPercent = 0.15; // 15% for medium ranges
+      bufferPercent = 0.15;
     } else {
-      bufferPercent = 0.20; // 20% for wide ranges
+      bufferPercent = 0.20;
     }
     
     const rangeBuffer = rangeWidth * bufferPercent;
@@ -569,56 +348,11 @@ export default function RangeLight() {
                 <p className="text-gray-400 text-xs sm:text-sm">Real-time LP position monitor</p>
               </div>
               
-              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-4">
-                {tokensWithPools.length > 0 ? (
-                  <>
-                    <div className="relative flex-1 sm:flex-initial">
-                      <select
-                        value={selectedToken0}
-                        onChange={(e) => setSelectedToken0(e.target.value)}
-                        className="appearance-none bg-gray-900 text-white px-2 sm:px-3 py-2 pr-8 rounded-lg border border-gray-700 focus:outline-none focus:border-green-500 font-semibold text-sm w-full"
-                      >
-                        {availableForToken0.map(token => (
-                          <option key={token} value={token}>
-                            {token}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                    
-                    <button
-                      onClick={() => {
-                        const temp = selectedToken0;
-                        setSelectedToken0(selectedToken1);
-                        setSelectedToken1(temp);
-                      }}
-                      className="p-1.5 bg-gray-900 rounded-lg border border-gray-700 hover:border-green-500 transition-colors"
-                      title="Swap tokens"
-                    >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                      </svg>
-                    </button>
-                    
-                    <div className="relative flex-1 sm:flex-initial">
-                      <select
-                        value={selectedToken1}
-                        onChange={(e) => setSelectedToken1(e.target.value)}
-                        className="appearance-none bg-gray-900 text-white px-2 sm:px-3 py-2 pr-8 rounded-lg border border-gray-700 focus:outline-none focus:border-green-500 font-semibold text-sm w-full"
-                      >
-                        {availableForToken1.map(token => (
-                          <option key={token} value={token}>
-                            {token}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-gray-500 italic">No pools configured</div>
-                )}
+              {/* Current Pair Display */}
+              <div className="flex items-center gap-2 sm:ml-4 bg-gray-900 px-3 py-2 rounded-lg border border-gray-700">
+                <span className="text-sm font-semibold text-white">
+                  {selectedToken0}/{selectedToken1}
+                </span>
               </div>
               
               <div className="flex items-center gap-2 ml-0 sm:ml-2">
@@ -634,7 +368,7 @@ export default function RangeLight() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-4 self-end sm:self-auto">{/* Fixed alignment */}
+            <div className="flex items-center gap-4 self-end sm:self-auto">
               {hasPool && (
                 <label className="flex items-center gap-2 text-xs text-gray-400">
                   <input
@@ -647,29 +381,31 @@ export default function RangeLight() {
                 </label>
               )}
               <button
-                onClick={() => usePoolData && hasPool ? fetchPoolRatio() : fetchTokenPrices()}
+                onClick={() => {
+                  setAggressiveRange(currentPrice);
+                  usePoolData && hasPool ? fetchPoolRatio() : fetchTokenPrices();
+                }}
                 className="p-2 bg-gray-900 rounded-lg border border-gray-700 hover:border-green-500 transition-colors"
+                title="Reset to 2% range"
               >
                 <RefreshCw className={`w-4 h-4 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
           
-          {/* Price Difference Warning - MADE SMALLER */}
+          {/* Price Difference Warning */}
           <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
             <span className="text-yellow-400">
               <strong>Note:</strong> {usePoolData ? 'Using pool reserves for ratio. No USD prices shown.' : 'Prices via DeFiLlama API. Your specific DEX pool price may differ due to liquidity and arbitrage.'} Always verify on your DEX!
             </span>
           </div>
           
-          {/* Limited Pools Notice - Only show if less than 20 pools */}
-          {Object.keys(poolAddresses).length < 20 && Object.keys(poolAddresses).length > 0 && (
-            <div className="mb-2 px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
-              <span className="text-blue-400">
-                <strong>Tracking {Object.keys(poolAddresses).length} pools:</strong> Continue adding Hyperswap & Hybra pool addresses to track more pairs.
-              </span>
-            </div>
-          )}
+          {/* Auto-range info */}
+          <div className="mb-2 px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
+            <span className="text-blue-400">
+              <strong>Auto-Range:</strong> Automatically sets 2% aggressive range when switching pairs. Click refresh to reset range to current price ±2%.
+            </span>
+          </div>
           
           {/* Available Pools Quick Select */}
           <div className="mb-4">
@@ -694,15 +430,7 @@ export default function RangeLight() {
                   </button>
                 );
               })}
-              {Object.keys(poolAddresses).length > 0 && Object.keys(poolAddresses).length < 30 && (
-                <span className="px-2 sm:px-3 py-1 text-xs text-gray-500 italic">
-                  + more pools available
-                </span>
-              )}
             </div>
-            {Object.keys(poolAddresses).length === 0 && (
-              <p className="text-xs text-gray-500 italic">No pools configured yet. Add pool addresses to start tracking pairs.</p>
-            )}
           </div>
           
           {tokensWithPools.length > 0 && (
@@ -841,7 +569,7 @@ export default function RangeLight() {
             </div>
           </div>
           
-          {/* Sensitivity Indicator - UPDATED WITH NEW VALUES */}
+          {/* Sensitivity Indicator */}
           <div className="mt-4 text-xs text-gray-400 text-center">
             Range Width: {((maxRange - minRange) / currentPrice * 100).toFixed(1)}% | 
             Yellow Zone: {
