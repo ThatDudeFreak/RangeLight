@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, ChevronDown, RefreshCw } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 
 export default function RangeLight() {
   // Pool addresses for direct DEX data (Hyperswap & Hybra)
@@ -21,13 +21,13 @@ export default function RangeLight() {
   });
 
   // State for position and prices
-  const [currentPrice, setCurrentPrice] = useState(1.00);
-  const [minRange, setMinRange] = useState(0.98);
-  const [maxRange, setMaxRange] = useState(1.02);
-  const [priceHistory, setPriceHistory] = useState([1.00]);
+  const [currentPrice, setCurrentPrice] = useState(0);
+  const [minRange, setMinRange] = useState(0);
+  const [maxRange, setMaxRange] = useState(0);
+  const [priceHistory, setPriceHistory] = useState([]);
   const [isInRange, setIsInRange] = useState(true);
   const [nearEdgeWarning, setNearEdgeWarning] = useState(false);
-  const [selectedToken0, setSelectedToken0] = useState('UFART');
+  const [selectedToken0, setSelectedToken0] = useState('WHLP');
   const [selectedToken1, setSelectedToken1] = useState('WHYPE');
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
@@ -77,40 +77,6 @@ export default function RangeLight() {
     updateInterval: 2000
   });
 
-  // Get available token pairs based on existing pools
-  const getAvailableTokensForPair = (selectedToken) => {
-    const availablePairs = [];
-    
-    Object.keys(poolAddresses).forEach(poolPair => {
-      const [token0, token1] = poolPair.split('/');
-      
-      if (token0 === selectedToken) {
-        availablePairs.push(token1);
-      } else if (token1 === selectedToken) {
-        availablePairs.push(token0);
-      }
-    });
-    
-    return [...new Set(availablePairs)]; // Remove duplicates
-  };
-  
-  // Get all tokens that have pools
-  const getTokensWithPools = () => {
-    const tokensSet = new Set();
-    
-    Object.keys(poolAddresses).forEach(poolPair => {
-      const [token0, token1] = poolPair.split('/');
-      tokensSet.add(token0);
-      tokensSet.add(token1);
-    });
-    
-    return Array.from(tokensSet);
-  };
-  
-  const tokensWithPools = getTokensWithPools();
-  const availableForToken0 = selectedToken1 ? getAvailableTokensForPair(selectedToken1) : tokensWithPools;
-  const availableForToken1 = selectedToken0 ? getAvailableTokensForPair(selectedToken0) : tokensWithPools;
-  
   // Check if current pair has a pool (check both directions)
   const currentPoolKey = `${selectedToken0}/${selectedToken1}`;
   const reversePoolKey = `${selectedToken1}/${selectedToken0}`;
@@ -120,8 +86,11 @@ export default function RangeLight() {
   // Function to set aggressive 2% range
   const setAggressiveRange = (price) => {
     const rangePercent = 0.02; // 2%
-    setMinRange(price * (1 - rangePercent));
-    setMaxRange(price * (1 + rangePercent));
+    const newMin = price * (1 - rangePercent);
+    const newMax = price * (1 + rangePercent);
+    setMinRange(newMin);
+    setMaxRange(newMax);
+    console.log(`Setting range for price ${price}: ${newMin} - ${newMax}`);
   };
 
   // Function to fetch pool reserves and calculate ratio directly
@@ -159,11 +128,15 @@ export default function RangeLight() {
           : reserve0 / reserve1;
         
         setCurrentPrice(ratio);
-        setPriceHistory(prev => [...prev.slice(-50), ratio]);
+        setPriceHistory(prev => {
+          const newHistory = [...prev, ratio];
+          // Keep only last 50 entries
+          return newHistory.slice(-50);
+        });
         setConnectionStatus('pool');
         
-        // Set aggressive range on first load or pair change
-        if (priceHistory.length === 1) {
+        // Set aggressive range if this is the first price or range not set
+        if ((minRange === 0 || maxRange === 0) && ratio > 0) {
           setAggressiveRange(ratio);
         }
         
@@ -207,11 +180,15 @@ export default function RangeLight() {
       if (price1 > 0) {
         const ratio = price0 / price1;
         setCurrentPrice(ratio);
-        setPriceHistory(prev => [...prev.slice(-50), ratio]);
+        setPriceHistory(prev => {
+          const newHistory = [...prev, ratio];
+          // Keep only last 50 entries
+          return newHistory.slice(-50);
+        });
         setConnectionStatus('connected');
         
-        // Set aggressive range on first load or pair change
-        if (priceHistory.length === 1) {
+        // Set aggressive range if this is the first price or range not set
+        if ((minRange === 0 || maxRange === 0) && ratio > 0) {
           setAggressiveRange(ratio);
         }
       } else {
@@ -228,68 +205,87 @@ export default function RangeLight() {
 
   // Reset price history and set aggressive range when pair changes
   useEffect(() => {
-    setPriceHistory([1.00]);
-    setCurrentPrice(1.00);
-    // Range will be set when price is fetched
+    // Clear price history
+    setPriceHistory([]);
+    setCurrentPrice(0);
+    // Clear range - will be set when price is fetched
+    setMinRange(0);
+    setMaxRange(0);
+    // Reset connection status
+    setConnectionStatus('disconnected');
   }, [selectedToken0, selectedToken1]);
 
   // Price update loop
   useEffect(() => {
+    let isMounted = true;
+    
     // Initial fetch
-    if (usePoolData && hasPool) {
-      fetchPoolRatio();
-    } else {
-      fetchTokenPrices();
-    }
+    const fetchData = async () => {
+      if (isMounted) {
+        if (usePoolData && hasPool) {
+          await fetchPoolRatio();
+        } else {
+          await fetchTokenPrices();
+        }
+      }
+    };
+    
+    fetchData();
     
     // Set up interval
     const interval = setInterval(() => {
-      if (usePoolData && hasPool) {
-        fetchPoolRatio();
-      } else {
-        fetchTokenPrices();
-      }
+      fetchData();
     }, priceConfig.updateInterval);
     
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [selectedToken0, selectedToken1, usePoolData]);
 
   // Check if in range with dynamic sensitivity
   useEffect(() => {
-    const inRange = currentPrice >= minRange && currentPrice <= maxRange;
-    setIsInRange(inRange);
-    
-    const rangeWidth = maxRange - minRange;
-    const rangePercent = rangeWidth / currentPrice;
-    
-    let bufferPercent;
-    if (rangePercent < 0.1) {
-      bufferPercent = 0.10;
-    } else if (rangePercent < 0.2) {
-      bufferPercent = 0.15;
-    } else {
-      bufferPercent = 0.20;
-    }
-    
-    const rangeBuffer = rangeWidth * bufferPercent;
-    const nearEdge = currentPrice <= minRange + rangeBuffer || currentPrice >= maxRange - rangeBuffer;
-    setNearEdgeWarning(nearEdge && inRange);
-    
-    // Set traffic light state
-    if (!inRange) {
-      setTrafficLight('red');
-    } else if (nearEdge) {
-      setTrafficLight('yellow');
-    } else {
-      setTrafficLight('green');
+    // Only check range if we have valid values
+    if (currentPrice > 0 && minRange > 0 && maxRange > 0 && minRange < maxRange) {
+      const inRange = currentPrice >= minRange && currentPrice <= maxRange;
+      setIsInRange(inRange);
+      
+      console.log(`Range check: ${currentPrice} in [${minRange}, ${maxRange}] = ${inRange}`);
+      
+      const rangeWidth = maxRange - minRange;
+      const rangePercent = rangeWidth / currentPrice;
+      
+      let bufferPercent;
+      if (rangePercent < 0.1) {
+        bufferPercent = 0.10;
+      } else if (rangePercent < 0.2) {
+        bufferPercent = 0.15;
+      } else {
+        bufferPercent = 0.20;
+      }
+      
+      const rangeBuffer = rangeWidth * bufferPercent;
+      const nearEdge = currentPrice <= minRange + rangeBuffer || currentPrice >= maxRange - rangeBuffer;
+      setNearEdgeWarning(nearEdge && inRange);
+      
+      // Set traffic light state
+      if (!inRange) {
+        setTrafficLight('red');
+      } else if (nearEdge) {
+        setTrafficLight('yellow');
+      } else {
+        setTrafficLight('green');
+      }
     }
   }, [currentPrice, minRange, maxRange]);
 
   // Calculate position percentage
-  const positionPercentage = ((currentPrice - minRange) / (maxRange - minRange)) * 100;
+  const positionPercentage = (maxRange - minRange) > 0 
+    ? ((currentPrice - minRange) / (maxRange - minRange)) * 100
+    : 50; // Default to center if range is invalid
 
   // Price change percentage
-  const priceChange = priceHistory.length > 1 
+  const priceChange = priceHistory.length > 1 && priceHistory[0] > 0
     ? ((currentPrice - priceHistory[0]) / priceHistory[0]) * 100 
     : 0;
 
@@ -331,13 +327,13 @@ export default function RangeLight() {
               {/* Traffic Light */}
               <div className="flex flex-col items-center gap-1 bg-gray-900 p-2 sm:p-3 rounded-lg">
                 <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full transition-all duration-300 ${
-                  trafficLight === 'red' ? 'bg-red-500 shadow-lg shadow-red-500/50' : 'bg-gray-700'
+                  currentPrice > 0 && minRange > 0 && maxRange > 0 && trafficLight === 'red' ? 'bg-red-500 shadow-lg shadow-red-500/50' : 'bg-gray-700'
                 }`} />
                 <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full transition-all duration-300 ${
-                  trafficLight === 'yellow' ? 'bg-yellow-500 shadow-lg shadow-yellow-500/50' : 'bg-gray-700'
+                  currentPrice > 0 && minRange > 0 && maxRange > 0 && trafficLight === 'yellow' ? 'bg-yellow-500 shadow-lg shadow-yellow-500/50' : 'bg-gray-700'
                 }`} />
                 <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full transition-all duration-300 ${
-                  trafficLight === 'green' ? 'bg-green-500 shadow-lg shadow-green-500/50' : 'bg-gray-700'
+                  currentPrice > 0 && minRange > 0 && maxRange > 0 && trafficLight === 'green' ? 'bg-green-500 shadow-lg shadow-green-500/50' : 'bg-gray-700'
                 }`} />
               </div>
               
@@ -407,10 +403,18 @@ export default function RangeLight() {
             </span>
           </div>
           
-          {/* Available Pools Quick Select */}
-          <div className="mb-4">
-            <p className="text-xs text-gray-400 mb-2">Available pools ({Object.keys(poolAddresses).length}):</p>
-            <div className="flex flex-wrap gap-1 sm:gap-2">
+          {/* Loading Overlay */}
+          {loading && currentPrice === 0 && (
+            <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500 rounded-lg flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+              <span className="text-blue-400 font-medium">Loading price data...</span>
+            </div>
+          )}
+          
+          {/* Available Pools - Primary Selection */}
+          <div className="mb-4 p-3 bg-gray-900 rounded-lg border border-gray-700">
+            <p className="text-sm font-semibold text-white mb-3">Select Trading Pair ({Object.keys(poolAddresses).length} pools available)</p>
+            <div className="flex flex-wrap gap-2">
               {Object.keys(poolAddresses).map(poolPair => {
                 const [token0, token1] = poolPair.split('/');
                 return (
@@ -419,11 +423,14 @@ export default function RangeLight() {
                     onClick={() => {
                       setSelectedToken0(token0);
                       setSelectedToken1(token1);
+                      // Clear any stale range values
+                      setMinRange(0);
+                      setMaxRange(0);
                     }}
-                    className={`px-2 sm:px-3 py-1 text-xs rounded-lg border transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                       selectedToken0 === token0 && selectedToken1 === token1
-                        ? 'bg-green-900 border-green-500 text-green-400'
-                        : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'
+                        ? 'bg-green-900 border-green-500 text-green-400 shadow-lg shadow-green-500/20'
+                        : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-700'
                     }`}
                   >
                     {poolPair}
@@ -433,42 +440,52 @@ export default function RangeLight() {
             </div>
           </div>
           
-          {tokensWithPools.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-              {!usePoolData && (
-                <>
-                  <div className="bg-gray-900 rounded p-2 sm:p-3">
-                    <div className="text-xs text-gray-400">{selectedToken0} Price</div>
-                    <div className="text-sm sm:text-lg font-semibold text-white">
-                      ${token0Price > 0 ? (token0Price < 0.01 ? token0Price.toFixed(8) : token0Price < 1 ? token0Price.toFixed(6) : token0Price.toFixed(4)) : '---'}
-                    </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+            {!usePoolData && (
+              <>
+                <div className="bg-gray-900 rounded p-2 sm:p-3">
+                  <div className="text-xs text-gray-400">{selectedToken0} Price</div>
+                  <div className="text-sm sm:text-lg font-semibold text-white">
+                    ${token0Price > 0 ? (token0Price < 0.01 ? token0Price.toFixed(8) : token0Price < 1 ? token0Price.toFixed(6) : token0Price.toFixed(4)) : '---'}
                   </div>
-                  <div className="bg-gray-900 rounded p-2 sm:p-3">
-                    <div className="text-xs text-gray-400">{selectedToken1} Price</div>
-                    <div className="text-sm sm:text-lg font-semibold text-white">
-                      ${token1Price > 0 ? (token1Price < 0.01 ? token1Price.toFixed(8) : token1Price < 1 ? token1Price.toFixed(6) : token1Price.toFixed(4)) : '---'}
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
-                <div className="text-xs text-gray-400">Ratio ({selectedToken0}/{selectedToken1})</div>
-                <div className={`text-sm sm:text-lg font-semibold flex items-center gap-1 ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)}
-                  {priceChange >= 0 ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />}
                 </div>
-                {hasPool && (
-                  <div className="text-xs text-gray-500 mt-1">Pool: {poolAddresses[actualPoolKey].slice(0, 6)}...{poolAddresses[actualPoolKey].slice(-4)}</div>
+                <div className="bg-gray-900 rounded p-2 sm:p-3">
+                  <div className="text-xs text-gray-400">{selectedToken1} Price</div>
+                  <div className="text-sm sm:text-lg font-semibold text-white">
+                    ${token1Price > 0 ? (token1Price < 0.01 ? token1Price.toFixed(8) : token1Price < 1 ? token1Price.toFixed(6) : token1Price.toFixed(4)) : '---'}
+                  </div>
+                </div>
+              </>
+            )}
+            <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
+              <div className="text-xs text-gray-400">Ratio ({selectedToken0}/{selectedToken1})</div>
+              <div className={`text-sm sm:text-lg font-semibold flex items-center gap-1 ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {currentPrice > 0 ? (
+                  <>
+                    {currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)}
+                    {priceChange >= 0 ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />}
+                  </>
+                ) : (
+                  <span className="text-gray-500">---</span>
                 )}
               </div>
-              <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
-                <div className="text-xs text-gray-400">24h Change</div>
-                <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                </div>
+              {hasPool && (
+                <div className="text-xs text-gray-500 mt-1">Pool: {poolAddresses[actualPoolKey].slice(0, 6)}...{poolAddresses[actualPoolKey].slice(-4)}</div>
+              )}
+            </div>
+            <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
+              <div className="text-xs text-gray-400">24h Change</div>
+              <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {priceHistory.length > 1 ? (
+                  <>
+                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                  </>
+                ) : (
+                  <span className="text-gray-500">---</span>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Range Visualization */}
@@ -477,28 +494,34 @@ export default function RangeLight() {
             <h2 className="text-base sm:text-lg font-semibold text-white">Position Range Monitor</h2>
             <div className="flex items-center gap-2 text-xs sm:text-sm">
               <div className={`w-3 h-3 rounded-full ${
-                trafficLight === 'green' ? 'bg-green-500' : 
-                trafficLight === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                currentPrice > 0 && minRange > 0 && maxRange > 0 ? (
+                  trafficLight === 'green' ? 'bg-green-500' : 
+                  trafficLight === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                ) : 'bg-gray-500'
               }`} />
               <span className={`font-medium ${
-                trafficLight === 'green' ? 'text-green-400' : 
-                trafficLight === 'yellow' ? 'text-yellow-400' : 'text-red-400'
+                currentPrice > 0 && minRange > 0 && maxRange > 0 ? (
+                  trafficLight === 'green' ? 'text-green-400' : 
+                  trafficLight === 'yellow' ? 'text-yellow-400' : 'text-red-400'
+                ) : 'text-gray-400'
               }`}>
-                {trafficLight === 'green' ? 'Safe Zone' : 
-                 trafficLight === 'yellow' ? 'Caution Zone' : 'Danger Zone'}
+                {currentPrice > 0 && minRange > 0 && maxRange > 0 ? (
+                  trafficLight === 'green' ? 'Safe Zone' : 
+                  trafficLight === 'yellow' ? 'Caution Zone' : 'Danger Zone'
+                ) : 'Loading...'}
               </span>
             </div>
           </div>
           
           {/* Status Alert */}
-          {!isInRange && (
+          {!isInRange && currentPrice > 0 && minRange > 0 && maxRange > 0 && (
             <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded-lg flex items-center gap-2 animate-pulse">
               <AlertCircle className="w-5 h-5 text-red-500" />
               <span className="text-red-400 font-medium">🔴 RED LIGHT - Position is OUT OF RANGE! Consider rebalancing.</span>
             </div>
           )}
           
-          {nearEdgeWarning && (
+          {nearEdgeWarning && currentPrice > 0 && minRange > 0 && maxRange > 0 && (
             <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500 rounded-lg flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-yellow-500" />
               <span className="text-yellow-400 font-medium">🟡 YELLOW LIGHT - Approaching range boundary!</span>
@@ -517,31 +540,37 @@ export default function RangeLight() {
               />
               
               {/* Current position indicator */}
-              <div 
-                className={`absolute top-0 bottom-0 w-1 transition-all duration-1000 ${
-                  isInRange ? 'bg-green-400' : 'bg-red-400'
-                }`}
-                style={{
-                  left: `${Math.max(0, Math.min(100, positionPercentage))}%`,
-                  boxShadow: isInRange 
-                    ? '0 0 10px rgba(74, 222, 128, 0.6)' 
-                    : '0 0 10px rgba(239, 68, 68, 0.6)'
-                }}
-              >
-                <div className={`absolute -top-6 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                  isInRange ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-                }`}>
-                  {currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)}
+              {currentPrice > 0 && minRange > 0 && maxRange > 0 && (
+                <div 
+                  className={`absolute top-0 bottom-0 w-1 transition-all duration-1000 ${
+                    isInRange ? 'bg-green-400' : 'bg-red-400'
+                  }`}
+                  style={{
+                    left: `${Math.max(0, Math.min(100, positionPercentage))}%`,
+                    boxShadow: isInRange 
+                      ? '0 0 10px rgba(74, 222, 128, 0.6)' 
+                      : '0 0 10px rgba(239, 68, 68, 0.6)'
+                  }}
+                >
+                  <div className={`absolute -top-6 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                    isInRange ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                  }`}>
+                    {currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             
             {/* Range labels */}
             <div className="flex justify-between mt-2">
-              <span className="text-sm text-gray-400">{minRange < 0.0001 ? minRange.toFixed(8) : minRange < 0.01 ? minRange.toFixed(6) : minRange.toFixed(4)}</span>
+              <span className="text-sm text-gray-400">
+                {minRange > 0 ? (minRange < 0.0001 ? minRange.toFixed(8) : minRange < 0.01 ? minRange.toFixed(6) : minRange.toFixed(4)) : '---'}
+              </span>
               <span className="text-sm text-gray-400">MIN</span>
               <span className="text-sm text-gray-400">MAX</span>
-              <span className="text-sm text-gray-400">{maxRange < 0.0001 ? maxRange.toFixed(8) : maxRange < 0.01 ? maxRange.toFixed(6) : maxRange.toFixed(4)}</span>
+              <span className="text-sm text-gray-400">
+                {maxRange > 0 ? (maxRange < 0.0001 ? maxRange.toFixed(8) : maxRange < 0.01 ? maxRange.toFixed(6) : maxRange.toFixed(4)) : '---'}
+              </span>
             </div>
           </div>
 
@@ -571,10 +600,12 @@ export default function RangeLight() {
           
           {/* Sensitivity Indicator */}
           <div className="mt-4 text-xs text-gray-400 text-center">
-            Range Width: {((maxRange - minRange) / currentPrice * 100).toFixed(1)}% | 
+            Range Width: {minRange > 0 && maxRange > 0 ? ((maxRange - minRange) / currentPrice * 100).toFixed(1) : '0'}% | 
             Yellow Zone: {
-              ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 10%' :
-              ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 15%' : ' 20%'
+              minRange > 0 && maxRange > 0 && currentPrice > 0 ? (
+                ((maxRange - minRange) / currentPrice * 100) < 10 ? ' 10%' :
+                ((maxRange - minRange) / currentPrice * 100) < 20 ? ' 15%' : ' 20%'
+              ) : ' ---'
             } from edges
           </div>
         </div>
@@ -584,19 +615,33 @@ export default function RangeLight() {
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
             <div className="text-xs sm:text-sm text-gray-400">Position Status</div>
             <div className={`text-sm sm:text-lg font-semibold ${isInRange ? 'text-green-400' : 'text-red-400'}`}>
-              {isInRange ? 'IN RANGE' : 'OUT OF RANGE'}
+              {currentPrice > 0 && minRange > 0 && maxRange > 0 ? (
+                isInRange ? 'IN RANGE' : 'OUT OF RANGE'
+              ) : (
+                <span className="text-gray-500">LOADING...</span>
+              )}
             </div>
           </div>
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
             <div className="text-xs sm:text-sm text-gray-400">Range Width</div>
             <div className="text-sm sm:text-lg font-semibold text-white">
-              {(maxRange - minRange) < 0.0001 ? (maxRange - minRange).toFixed(8) : (maxRange - minRange) < 0.01 ? (maxRange - minRange).toFixed(6) : (maxRange - minRange).toFixed(4)}
+              {minRange > 0 && maxRange > 0 ? (
+                (maxRange - minRange) < 0.0001 ? (maxRange - minRange).toFixed(8) : 
+                (maxRange - minRange) < 0.01 ? (maxRange - minRange).toFixed(6) : 
+                (maxRange - minRange).toFixed(4)
+              ) : '---'}
             </div>
           </div>
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
             <div className="text-xs sm:text-sm text-gray-400">24h Change</div>
             <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+              {priceHistory.length > 1 ? (
+                <>
+                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                </>
+              ) : (
+                <span className="text-gray-500">---</span>
+              )}
             </div>
           </div>
         </div>
