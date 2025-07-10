@@ -16,8 +16,46 @@ export default function RangeLight() {
   const [token0Price, setToken0Price] = useState(0);
   const [token1Price, setToken1Price] = useState(0);
   const [trafficLight, setTrafficLight] = useState('green'); // green, yellow, red
+  const [showPoolData, setShowPoolData] = useState(false); // Toggle for pool vs DeFiLlama prices
   
-  // Available tokens with addresses
+  // Pool addresses for direct DEX data (Hyperswap)
+  const [poolAddresses] = useState({
+    'UBTC/HYPE': '0xc62f47203f2c1038a528293c6662d1db0599ce94',
+    'USDXL/HYPE': '0xc62f47203f2c1038a528293c6662d1db0599ce94', // Same address?
+    // Add more pools as we find them
+  });
+  
+  // Hyperswap factory
+  const HYPERSWAP_FACTORY = '0x6eDA206207c09e5428F281761DdC0D300851fBC8';
+  
+  // Basic pool ABI for reading reserves
+  const POOL_ABI = [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "getReserves",
+      "outputs": [
+        {"name": "_reserve0", "type": "uint112"},
+        {"name": "_reserve1", "type": "uint112"},
+        {"name": "_blockTimestampLast", "type": "uint32"}
+      ],
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "token0",
+      "outputs": [{"name": "", "type": "address"}],
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "token1",
+      "outputs": [{"name": "", "type": "address"}],
+      "type": "function"
+    }
+  ];
   const [availableTokens] = useState({
     'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
     'LHYPE': { symbol: 'LHYPE', address: '0x5748ae796ae46a4f1348a1693de4b50560485562', decimals: 18 },
@@ -53,13 +91,53 @@ export default function RangeLight() {
 
   // Price feed configuration
   const [priceConfig] = useState({
-    // Your price feed endpoint (UPDATE THIS with your actual endpoint)
-    priceFeedUrl: 'https://your-price-api.com/prices',
-    // Backup: RPC endpoint for fallback
-    rpcUrl: 'https://evmrpc-eu.hyperpc.app/cdbd4d94ff1b4cde839f8fa59126e200',
+    // DeFiLlama price API (free, no rate limits)
+    priceFeedUrl: 'https://coins.llama.fi/prices/current',
+    // Hyperliquid RPC endpoint (can also fetch pool data)
+    rpcUrl: 'https://evmrpc-jp.hyperpc.app/6043a2905bbc4765ba3dd43fabe4eec0?apikey=BRExesZrDWsu0LErgac2s6jTpSOa7UeZ',
     // Price update interval (ms)
     updateInterval: 2000
   });
+
+  // Function to fetch pool data directly from DEX
+  const fetchPoolData = async (poolAddress) => {
+    try {
+      const calls = [
+        {
+          to: poolAddress,
+          data: '0x0902f1ac' // getReserves() function selector
+        },
+        {
+          to: poolAddress,
+          data: '0x0dfe1681' // token0() function selector
+        },
+        {
+          to: poolAddress,
+          data: '0xd21220a7' // token1() function selector
+        }
+      ];
+      
+      const response = await fetch(priceConfig.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_call',
+          params: [calls[0], 'latest']
+        })
+      });
+      
+      const data = await response.json();
+      console.log('Pool data:', data);
+      
+      // This would return reserves which we can use to calculate actual pool ratio
+      // For now, we'll continue using DeFiLlama prices
+      
+    } catch (error) {
+      console.error('Error fetching pool data:', error);
+    }
+  };
 
   // Function to fetch token prices from price feed
   const fetchTokenPrices = async () => {
@@ -68,14 +146,23 @@ export default function RangeLight() {
       const token0Data = availableTokens[selectedToken0];
       const token1Data = availableTokens[selectedToken1];
       
-      // Option 1: Fetch from price API (preferred)
+      // Fetch from DeFiLlama API
       try {
-        const response = await fetch(`${priceConfig.priceFeedUrl}?tokens=${token0Data.address},${token1Data.address}`);
+        // Construct the token identifiers for DeFiLlama
+        const tokens = [
+          `hyperliquid:${token0Data.address.toLowerCase()}`,
+          `hyperliquid:${token1Data.address.toLowerCase()}`
+        ].join(',');
+        
+        const response = await fetch(`${priceConfig.priceFeedUrl}/${tokens}`);
         const data = await response.json();
         
-        // Example response format - adjust based on your API
-        const price0 = data[token0Data.address]?.usd || 0;
-        const price1 = data[token1Data.address]?.usd || 0;
+        // Extract prices from DeFiLlama response format
+        const token0Key = `hyperliquid:${token0Data.address.toLowerCase()}`;
+        const token1Key = `hyperliquid:${token1Data.address.toLowerCase()}`;
+        
+        const price0 = data.coins?.[token0Key]?.price || 0;
+        const price1 = data.coins?.[token1Key]?.price || 0;
         
         setToken0Price(price0);
         setToken1Price(price1);
@@ -85,19 +172,15 @@ export default function RangeLight() {
           const ratio = price0 / price1;
           setCurrentPrice(ratio);
           setPriceHistory(prev => [...prev.slice(-50), ratio]);
+          setConnectionStatus('connected');
+        } else {
+          console.error('Unable to calculate ratio - token prices not available');
+          setConnectionStatus('error');
         }
         
-        setConnectionStatus('connected');
       } catch (apiError) {
-        console.error('API fetch failed, using simulation:', apiError);
-        
-        // Fallback: Simulate price movement (replace with actual backup method)
-        const change = (Math.random() - 0.5) * 0.02;
-        const newPrice = currentPrice * (1 + change);
-        setCurrentPrice(newPrice);
-        setPriceHistory(prev => [...prev.slice(-50), newPrice]);
-        
-        setConnectionStatus('degraded');
+        console.error('DeFiLlama API error:', apiError);
+        setConnectionStatus('error');
       }
     } catch (error) {
       console.error('Price fetch error:', error);
@@ -212,7 +295,7 @@ export default function RangeLight() {
               
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                  RangeLight 🚦
+                  🚦 RangeLight
                 </h1>
                 <p className="text-gray-400 text-xs sm:text-sm">Real-time LP position monitor</p>
               </div>
@@ -266,12 +349,10 @@ export default function RangeLight() {
               <div className="flex items-center gap-2 ml-0 sm:ml-2">
                 <div className={`w-2 h-2 rounded-full ${
                   connectionStatus === 'connected' ? 'bg-green-400' : 
-                  connectionStatus === 'degraded' ? 'bg-yellow-400' :
                   connectionStatus === 'error' ? 'bg-red-400' : 'bg-gray-400'
                 }`} />
                 <span className="text-xs sm:text-sm text-gray-400">
-                  {connectionStatus === 'connected' ? 'Live' : 
-                   connectionStatus === 'degraded' ? 'Simulated' :
+                  {connectionStatus === 'connected' ? 'Live (DeFiLlama)' : 
                    connectionStatus === 'error' ? 'Error' : 'Connecting...'}
                 </span>
               </div>
@@ -287,9 +368,18 @@ export default function RangeLight() {
           {/* Price Difference Warning - MADE SMALLER */}
           <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
             <span className="text-yellow-400">
-              <strong>Note:</strong> This uses global token prices, not your specific DEX pool price. Actual pool prices may differ due to liquidity and arbitrage. Always verify on your DEX!
+              <strong>Note:</strong> Prices via DeFiLlama API. Your specific DEX pool price may differ due to liquidity and arbitrage. Always verify on your DEX!
             </span>
           </div>
+          
+          {/* Pool Data Info - Temporary */}
+          {false && (
+            <div className="mb-2 px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
+              <span className="text-blue-400">
+                <strong>Hyperswap Pools Found:</strong> UBTC/HYPE & USDXL/HYPE at 0xc62f...ce94
+              </span>
+            </div>
+          )}
           
           {/* Popular Pairs Quick Select */}
           <div className="mb-4">
@@ -324,13 +414,13 @@ export default function RangeLight() {
             <div className="bg-gray-900 rounded p-2 sm:p-3">
               <div className="text-xs text-gray-400">{selectedToken0} Price</div>
               <div className="text-sm sm:text-lg font-semibold text-white">
-                ${token0Price > 0 ? token0Price.toFixed(6) : '---'}
+                ${token0Price > 0 ? (token0Price < 0.01 ? token0Price.toFixed(8) : token0Price < 1 ? token0Price.toFixed(6) : token0Price.toFixed(4)) : '---'}
               </div>
             </div>
             <div className="bg-gray-900 rounded p-2 sm:p-3">
               <div className="text-xs text-gray-400">{selectedToken1} Price</div>
               <div className="text-sm sm:text-lg font-semibold text-white">
-                ${token1Price > 0 ? token1Price.toFixed(6) : '---'}
+                ${token1Price > 0 ? (token1Price < 0.01 ? token1Price.toFixed(8) : token1Price < 1 ? token1Price.toFixed(6) : token1Price.toFixed(4)) : '---'}
               </div>
             </div>
             <div className="bg-gray-900 rounded p-2 sm:p-3">
@@ -417,8 +507,8 @@ export default function RangeLight() {
             {/* Range labels */}
             <div className="flex justify-between mt-2">
               <span className="text-sm text-gray-400">{minRange.toFixed(4)}</span>
-              <span className="text-sm text-gray-400"></span>
-              <span className="text-sm text-gray-400"></span>
+              <span className="text-sm text-gray-400">MIN</span>
+              <span className="text-sm text-gray-400">MAX</span>
               <span className="text-sm text-gray-400">{maxRange.toFixed(4)}</span>
             </div>
           </div>
