@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function RangeLight() {
   // Pool addresses for direct DEX data (Hyperswap & Hybra)
   const [poolAddresses] = useState({
     // Hyperswap pools
-    'WHYPE/USDT': '0x3603ffebb994cc110b4186040cac3005b2cf4465',
+    'WHYPE/USD₮0': '0x3603ffebb994cc110b4186040cac3005b2cf4465',
     'WHYPE/USDHL': '0xf47882f97becd8476ba7b37f737824ca63c7d643',
     'WHYPE/UBTC': '0x43779f5e56720fbd7f99a18ca4b625838bec934c',
     'WHYPE/UETH': '0xa90d4bc085ff2304f786f9f1633f3cd508182aca',
@@ -34,7 +34,7 @@ export default function RangeLight() {
   const [token0Price, setToken0Price] = useState(0);
   const [token1Price, setToken1Price] = useState(0);
   const [trafficLight, setTrafficLight] = useState('green');
-  const [usePoolData, setUsePoolData] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
   
   const [availableTokens] = useState({
     'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
@@ -42,7 +42,7 @@ export default function RangeLight() {
     'UBTC': { symbol: 'UBTC', address: '0x9fdbda0a5e284c32744d2f17ee5c74b284993463', decimals: 18 },
     'USOL': { symbol: 'USOL', address: '0x068f321fa8fb9f0d135f290ef6a3e2813e1c8a29', decimals: 18 },
     'UFART': { symbol: 'UFART', address: '0xda3aaae38ee71382ee091c7a4978491f39bf851d', decimals: 18 },
-    'USDT': { symbol: 'USDT', address: '0xbf2d3b1a37d54ce86d0e1455884da875a97c87a8', decimals: 18 },
+    'USD₮0': { symbol: 'USD₮0', address: '0xbf2d3b1a37d54ce86d0e1455884da875a97c87a8', decimals: 18 },
     'USDHL': { symbol: 'USDHL', address: '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5', decimals: 18 },
     'PIP': { symbol: 'PIP', address: '0x1bee6762f0b522c606dc2ffb106c0bb391b2e309', decimals: 18 },
     'BUDDY': { symbol: 'BUDDY', address: '0x47bb061c0204af921f43dc73c7d7768d2672ddee', decimals: 18 },
@@ -63,18 +63,19 @@ export default function RangeLight() {
 
   // DEX links configuration
   const [dexLinks] = useState([
+    { name: 'Prj X', url: 'https://www.prjx.com/@FREAK', logo: '❌' }
     { name: 'Kittenswap', url: 'https://app.kittenswap.finance/', logo: '🐱' },
     { name: 'Hyperswap', url: 'https://app.hyperswap.exchange/#/swap?referral=Freak', logo: '⚡' },
     { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🐉' },
     { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
-    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
+    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' },
   ]);
 
   // Price feed configuration
   const [priceConfig] = useState({
     priceFeedUrl: 'https://coins.llama.fi/prices/current',
     rpcUrl: 'https://evmrpc-jp.hyperpc.app/6043a2905bbc4765ba3dd43fabe4eec0?apikey=BRExesZrDWsu0LErgac2s6jTpSOa7UeZ',
-    updateInterval: 2000
+    updateInterval: 1000 // Update every second for maximum freshness
   });
 
   // Check if current pair has a pool (check both directions)
@@ -91,61 +92,6 @@ export default function RangeLight() {
     setMinRange(newMin);
     setMaxRange(newMax);
     console.log(`Setting range for price ${price}: ${newMin} - ${newMax}`);
-  };
-
-  // Function to fetch pool reserves and calculate ratio directly
-  const fetchPoolRatio = async () => {
-    if (!hasPool) return;
-    
-    try {
-      const poolAddress = poolAddresses[actualPoolKey];
-      const isReversed = actualPoolKey === reversePoolKey;
-      
-      const response = await fetch(priceConfig.rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_call',
-          params: [{
-            to: poolAddress,
-            data: '0x0902f1ac' // getReserves()
-          }, 'latest']
-        })
-      });
-      
-      const data = await response.json();
-      if (data.result) {
-        const reserve0Hex = data.result.slice(2, 66);
-        const reserve1Hex = data.result.slice(66, 130);
-        
-        const reserve0 = parseInt(reserve0Hex, 16) / 1e18;
-        const reserve1 = parseInt(reserve1Hex, 16) / 1e18;
-        
-        const ratio = isReversed 
-          ? reserve1 / reserve0 
-          : reserve0 / reserve1;
-        
-        setCurrentPrice(ratio);
-        setPriceHistory(prev => {
-          const newHistory = [...prev, ratio];
-          // Keep only last 50 entries
-          return newHistory.slice(-50);
-        });
-        setConnectionStatus('pool');
-        
-        // Set aggressive range if this is the first price or range not set
-        if ((minRange === 0 || maxRange === 0) && ratio > 0) {
-          setAggressiveRange(ratio);
-        }
-        
-        console.log('Pool reserves:', { reserve0, reserve1, ratio, isReversed });
-      }
-    } catch (error) {
-      console.error('Error fetching pool data:', error);
-      fetchTokenPrices();
-    }
   };
 
   // Function to fetch token prices from DeFiLlama
@@ -171,8 +117,12 @@ export default function RangeLight() {
       const token0Key = `hyperliquid:${token0Data.address.toLowerCase()}`;
       const token1Key = `hyperliquid:${token1Data.address.toLowerCase()}`;
       
-      const price0 = data.coins?.[token0Key]?.price || 0;
-      const price1 = data.coins?.[token1Key]?.price || 0;
+      let price0 = data.coins?.[token0Key]?.price || 0;
+      let price1 = data.coins?.[token1Key]?.price || 0;
+      
+      // Special handling for USD₮0 - always $1
+      if (selectedToken0 === 'USD₮0') price0 = 1;
+      if (selectedToken1 === 'USD₮0') price1 = 1;
       
       setToken0Price(price0);
       setToken1Price(price1);
@@ -215,33 +165,38 @@ export default function RangeLight() {
     setConnectionStatus('disconnected');
   }, [selectedToken0, selectedToken1]);
 
-  // Price update loop
+  // Price update loop with refresh animation
   useEffect(() => {
     let isMounted = true;
     
     // Initial fetch
     const fetchData = async () => {
       if (isMounted) {
-        if (usePoolData && hasPool) {
-          await fetchPoolRatio();
-        } else {
-          await fetchTokenPrices();
-        }
+        await fetchTokenPrices();
       }
     };
     
     fetchData();
     
-    // Set up interval
+    // Set up interval with progress animation
     const interval = setInterval(() => {
       fetchData();
     }, priceConfig.updateInterval);
     
+    // Update refresh progress
+    const progressInterval = setInterval(() => {
+      setRefreshProgress((prev) => {
+        if (prev >= 100) return 0;
+        return prev + (100 / (priceConfig.updateInterval / 50)); // Complete in updateInterval ms
+      });
+    }, 50);
+    
     return () => {
       isMounted = false;
       clearInterval(interval);
+      clearInterval(progressInterval);
     };
-  }, [selectedToken0, selectedToken1, usePoolData]);
+  }, [selectedToken0, selectedToken1]);
 
   // Check if in range with dynamic sensitivity
   useEffect(() => {
@@ -283,11 +238,6 @@ export default function RangeLight() {
   const positionPercentage = (maxRange - minRange) > 0 
     ? ((currentPrice - minRange) / (maxRange - minRange)) * 100
     : 50; // Default to center if range is invalid
-
-  // Price change percentage
-  const priceChange = priceHistory.length > 1 && priceHistory[0] > 0
-    ? ((currentPrice - priceHistory[0]) / priceHistory[0]) * 100 
-    : 0;
 
   return (
     <div className="min-h-screen bg-gray-900 p-2 sm:p-4">
@@ -339,7 +289,7 @@ export default function RangeLight() {
               
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                  🚦 RangeLight
+                  RangeLight 🚦 <span className="text-xs text-gray-500 font-normal">Beta v1.0</span>
                 </h1>
                 <p className="text-gray-400 text-xs sm:text-sm">Real-time LP position monitor</p>
               </div>
@@ -352,34 +302,52 @@ export default function RangeLight() {
               </div>
               
               <div className="flex items-center gap-2 ml-0 sm:ml-2">
+                {/* Refresh Progress Circle */}
+                <div className="relative w-6 h-6">
+                  <svg className="w-6 h-6 -rotate-90 transform">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="none"
+                      className="text-gray-700"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="none"
+                      className="text-green-400"
+                      strokeDasharray={`${2 * Math.PI * 10}`}
+                      strokeDashoffset={`${2 * Math.PI * 10 * (1 - refreshProgress / 100)}`}
+                      style={{ transition: 'stroke-dashoffset 0.05s linear' }}
+                    />
+                  </svg>
+                  {refreshProgress >= 99 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <RefreshCw className="w-3 h-3 text-green-400 animate-pulse" />
+                    </div>
+                  )}
+                </div>
                 <div className={`w-2 h-2 rounded-full ${
                   connectionStatus === 'connected' ? 'bg-green-400' : 
-                  connectionStatus === 'pool' ? 'bg-blue-400' :
                   connectionStatus === 'error' ? 'bg-red-400' : 'bg-gray-400'
                 }`} />
                 <span className="text-xs sm:text-sm text-gray-400">
-                  {connectionStatus === 'connected' ? 'Live (DeFiLlama)' : 
-                   connectionStatus === 'pool' ? 'Pool Data' :
+                  {connectionStatus === 'connected' ? 'Live' : 
                    connectionStatus === 'error' ? 'Error' : 'Connecting...'}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-4 self-end sm:self-auto">
-              {hasPool && (
-                <label className="flex items-center gap-2 text-xs text-gray-400">
-                  <input
-                    type="checkbox"
-                    checked={usePoolData}
-                    onChange={(e) => setUsePoolData(e.target.checked)}
-                    className="rounded border-gray-600 bg-gray-900 text-green-500 focus:ring-green-500"
-                  />
-                  Use Pool Data
-                </label>
-              )}
               <button
                 onClick={() => {
                   setAggressiveRange(currentPrice);
-                  usePoolData && hasPool ? fetchPoolRatio() : fetchTokenPrices();
+                  fetchTokenPrices();
                 }}
                 className="p-2 bg-gray-900 rounded-lg border border-gray-700 hover:border-green-500 transition-colors"
                 title="Reset to 2% range"
@@ -387,20 +355,6 @@ export default function RangeLight() {
                 <RefreshCw className={`w-4 h-4 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
-          </div>
-          
-          {/* Price Difference Warning */}
-          <div className="mb-2 px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
-            <span className="text-yellow-400">
-              <strong>Note:</strong> {usePoolData ? 'Using pool reserves for ratio. No USD prices shown.' : 'Prices via DeFiLlama API. Your specific DEX pool price may differ due to liquidity and arbitrage.'} Always verify on your DEX!
-            </span>
-          </div>
-          
-          {/* Auto-range info */}
-          <div className="mb-2 px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
-            <span className="text-blue-400">
-              <strong>Auto-Range:</strong> Automatically sets 2% aggressive range when switching pairs. Click refresh to reset range to current price ±2%.
-            </span>
           </div>
           
           {/* Loading Overlay */}
@@ -440,31 +394,24 @@ export default function RangeLight() {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-            {!usePoolData && (
-              <>
-                <div className="bg-gray-900 rounded p-2 sm:p-3">
-                  <div className="text-xs text-gray-400">{selectedToken0} Price</div>
-                  <div className="text-sm sm:text-lg font-semibold text-white">
-                    ${token0Price > 0 ? (token0Price < 0.01 ? token0Price.toFixed(8) : token0Price < 1 ? token0Price.toFixed(6) : token0Price.toFixed(4)) : '---'}
-                  </div>
-                </div>
-                <div className="bg-gray-900 rounded p-2 sm:p-3">
-                  <div className="text-xs text-gray-400">{selectedToken1} Price</div>
-                  <div className="text-sm sm:text-lg font-semibold text-white">
-                    ${token1Price > 0 ? (token1Price < 0.01 ? token1Price.toFixed(8) : token1Price < 1 ? token1Price.toFixed(6) : token1Price.toFixed(4)) : '---'}
-                  </div>
-                </div>
-              </>
-            )}
-            <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-gray-900 rounded p-2 sm:p-3">
+              <div className="text-xs text-gray-400">{selectedToken0} Price</div>
+              <div className="text-sm sm:text-lg font-semibold text-white">
+                ${token0Price > 0 ? (token0Price < 0.01 ? token0Price.toFixed(8) : token0Price < 1 ? token0Price.toFixed(6) : token0Price.toFixed(4)) : '---'}
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded p-2 sm:p-3">
+              <div className="text-xs text-gray-400">{selectedToken1} Price</div>
+              <div className="text-sm sm:text-lg font-semibold text-white">
+                ${token1Price > 0 ? (token1Price < 0.01 ? token1Price.toFixed(8) : token1Price < 1 ? token1Price.toFixed(6) : token1Price.toFixed(4)) : '---'}
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded p-2 sm:p-3">
               <div className="text-xs text-gray-400">Ratio ({selectedToken0}/{selectedToken1})</div>
-              <div className={`text-sm sm:text-lg font-semibold flex items-center gap-1 ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className="text-sm sm:text-lg font-semibold text-white">
                 {currentPrice > 0 ? (
-                  <>
-                    {currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)}
-                    {priceChange >= 0 ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" /> : <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />}
-                  </>
+                  currentPrice < 0.0001 ? currentPrice.toFixed(8) : currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(4)
                 ) : (
                   <span className="text-gray-500">---</span>
                 )}
@@ -472,18 +419,6 @@ export default function RangeLight() {
               {hasPool && (
                 <div className="text-xs text-gray-500 mt-1">Pool: {poolAddresses[actualPoolKey].slice(0, 6)}...{poolAddresses[actualPoolKey].slice(-4)}</div>
               )}
-            </div>
-            <div className={`bg-gray-900 rounded p-2 sm:p-3 ${usePoolData ? 'col-span-2' : ''}`}>
-              <div className="text-xs text-gray-400">24h Change</div>
-              <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {priceHistory.length > 1 ? (
-                  <>
-                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                  </>
-                ) : (
-                  <span className="text-gray-500">---</span>
-                )}
-              </div>
             </div>
           </div>
         </div>
@@ -611,7 +546,7 @@ export default function RangeLight() {
         </div>
 
         {/* Stats */}
-        <div className="mt-4 sm:mt-6 mb-8 grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="mt-4 sm:mt-6 mb-4 grid grid-cols-2 gap-2 sm:gap-4">
           <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
             <div className="text-xs sm:text-sm text-gray-400">Position Status</div>
             <div className={`text-sm sm:text-lg font-semibold ${isInRange ? 'text-green-400' : 'text-red-400'}`}>
@@ -632,18 +567,28 @@ export default function RangeLight() {
               ) : '---'}
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
-            <div className="text-xs sm:text-sm text-gray-400">24h Change</div>
-            <div className={`text-sm sm:text-lg font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {priceHistory.length > 1 ? (
-                <>
-                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                </>
-              ) : (
-                <span className="text-gray-500">---</span>
-              )}
-            </div>
+        </div>
+        
+        {/* Info Notes */}
+        <div className="space-y-2 mb-4">
+          <div className="px-2 py-1 bg-yellow-900/20 border border-yellow-600 rounded text-xs">
+            <span className="text-yellow-400">
+              <strong>Note:</strong> Prices via DeFiLlama API. Your specific DEX pool price may differ due to liquidity and arbitrage. Always verify on your DEX!
+            </span>
           </div>
+          
+          <div className="px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
+            <span className="text-blue-400">
+              <strong>Auto-Range:</strong> Automatically sets 2% aggressive range when switching pairs. Click refresh to reset range to current price ±2%.
+            </span>
+          </div>
+        </div>
+        
+        {/* Contact Footer */}
+        <div className="text-center pb-4">
+          <p className="text-xs text-gray-500">
+            DM <a href="https://x.com/ThatNFTGawd" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 underline">@ThatNFTGawd</a> on X with suggestions, bugs, or if you want a trading pair added
+          </p>
         </div>
       </div>
     </div>
