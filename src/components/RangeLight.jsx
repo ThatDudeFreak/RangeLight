@@ -19,6 +19,7 @@ export default function RangeLight() {
     'WHYPE/XAUTO': '0x91522dfddb5e5831a889326426373fb894ec37b1',
     'WHYPE/KITTEN': '0xf2cd2e2f7446f308174e4c67e0ab42200d4c00a4',
     'WHYPE/UPUMP': '0x475de8127c857018e11e9b378f61b84c1df1c834',
+    'WHYPE/PURR': '0x0dba5b5b3fcfe2dcb9957359a4dab7bb5526be47',
   });
 
   // State for position and prices
@@ -60,7 +61,8 @@ export default function RangeLight() {
     'MHYPE': { symbol: 'MHYPE', address: '0xdabb040c428436d41cecd0fb06bcfdbaad3a9aa8', decimals: 18 },
     'WHYPE': { symbol: 'WHYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
     'XAUTO': { symbol: 'XAUTO', address: '0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949', decimals: 18 },
-    'UPUMP': { symbol: 'UPUMP', address: '0x27eC642013bcB3D80CA3706599D3cdA04F6f4452', decimals: 18 }
+    'UPUMP': { symbol: 'UPUMP', address: '0x27eC642013bcB3D80CA3706599D3cdA04F6f4452', decimals: 18 },
+    'UPUMP': { symbol: 'PURR', address: '0x0Dba5B5B3fcFE2dCB9957359A4Dab7bB5526Be47', decimals: 18 }
   });
 
   // DEX links configuration
