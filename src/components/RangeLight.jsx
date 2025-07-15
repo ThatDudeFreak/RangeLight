@@ -63,12 +63,12 @@ export default function RangeLight() {
 
   // DEX links configuration
   const [dexLinks] = useState([
-    { name: 'Prj X', url: 'https://www.prjx.com/@FREAK', logo: '❌' }
+    { name: 'Prj X', url: 'https://www.prjx.com/@FREAK', logo: '❌' },
     { name: 'Kittenswap', url: 'https://app.kittenswap.finance/', logo: '🐱' },
     { name: 'Hyperswap', url: 'https://app.hyperswap.exchange/#/swap?referral=Freak', logo: '⚡' },
     { name: 'HybraFinance', url: 'https://www.hybra.finance?code=SVGRAT', logo: '🐉' },
     { name: 'GLIQUID', url: 'https://www.gliquid.xyz?referral=fUO91jHL', logo: '💧' },
-    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' },
+    { name: 'Laminar', url: 'https://laminar.xyz/explore/pools', logo: '🌀' }
   ]);
 
   // Price feed configuration
