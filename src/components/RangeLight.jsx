@@ -37,6 +37,8 @@ export default function RangeLight() {
   const [token1Price, setToken1Price] = useState(0);
   const [trafficLight, setTrafficLight] = useState('green');
   const [refreshProgress, setRefreshProgress] = useState(0);
+  const [isManualRange, setIsManualRange] = useState(false); // Track if user has manually set range
+  const [rangeInitialized, setRangeInitialized] = useState(false); // Track if range has been auto-set
   
   const [availableTokens] = useState({
     'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
@@ -61,8 +63,7 @@ export default function RangeLight() {
     'MHYPE': { symbol: 'MHYPE', address: '0xdabb040c428436d41cecd0fb06bcfdbaad3a9aa8', decimals: 18 },
     'WHYPE': { symbol: 'WHYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
     'XAUTO': { symbol: 'XAUTO', address: '0xf4D9235269a96aaDaFc9aDAe454a0618eBE37949', decimals: 18 },
-    'UPUMP': { symbol: 'UPUMP', address: '0x27eC642013bcB3D80CA3706599D3cdA04F6f4452', decimals: 18 },
-    'UPUMP': { symbol: 'PURR', address: '0x0Dba5B5B3fcFE2dCB9957359A4Dab7bB5526Be47', decimals: 18 }
+    'UPUMP': { symbol: 'UPUMP', address: '0x27eC642013bcB3D80CA3706599D3cdA04F6f4452', decimals: 18 }
   });
 
   // DEX links configuration
@@ -95,6 +96,7 @@ export default function RangeLight() {
     const newMax = price * (1 + rangePercent);
     setMinRange(newMin);
     setMaxRange(newMax);
+    setIsManualRange(false);
     console.log(`Setting range for price ${price}: ${newMin} - ${newMax}`);
   };
 
@@ -141,9 +143,12 @@ export default function RangeLight() {
         });
         setConnectionStatus('connected');
         
-        // Set aggressive range if this is the first price or range not set
-        if ((minRange === 0 || maxRange === 0) && ratio > 0) {
+        // Only set aggressive range if:
+        // 1. Range hasn't been initialized yet
+        // 2. User hasn't manually set the range
+        if (!rangeInitialized && !isManualRange && ratio > 0) {
           setAggressiveRange(ratio);
+          setRangeInitialized(true);
         }
       } else {
         console.error('Unable to calculate ratio - token prices not available');
@@ -157,7 +162,7 @@ export default function RangeLight() {
     }
   };
 
-  // Reset price history and set aggressive range when pair changes
+  // Reset when pair changes
   useEffect(() => {
     // Clear price history
     setPriceHistory([]);
@@ -165,6 +170,9 @@ export default function RangeLight() {
     // Clear range - will be set when price is fetched
     setMinRange(0);
     setMaxRange(0);
+    // Reset flags
+    setIsManualRange(false);
+    setRangeInitialized(false);
     // Reset connection status
     setConnectionStatus('disconnected');
   }, [selectedToken0, selectedToken1]);
@@ -242,6 +250,23 @@ export default function RangeLight() {
   const positionPercentage = (maxRange - minRange) > 0 
     ? ((currentPrice - minRange) / (maxRange - minRange)) * 100
     : 50; // Default to center if range is invalid
+
+  // Handle manual range input
+  const handleMinRangeChange = (e) => {
+    const value = parseFloat(e.target.value) || 0;
+    setMinRange(value);
+    if (value > 0) {
+      setIsManualRange(true);
+    }
+  };
+
+  const handleMaxRangeChange = (e) => {
+    const value = parseFloat(e.target.value) || 0;
+    setMaxRange(value);
+    if (value > 0) {
+      setIsManualRange(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 p-2 sm:p-4">
@@ -384,6 +409,8 @@ export default function RangeLight() {
                       // Clear any stale range values
                       setMinRange(0);
                       setMaxRange(0);
+                      setIsManualRange(false);
+                      setRangeInitialized(false);
                     }}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                       selectedToken0 === token0 && selectedToken1 === token1
@@ -516,21 +543,25 @@ export default function RangeLight() {
           {/* Range Inputs */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Min Range (Ratio)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Min Range (Ratio) {isManualRange && <span className="text-xs text-green-400">(Manual)</span>}
+              </label>
               <input
                 type="number"
                 value={minRange}
-                onChange={(e) => setMinRange(parseFloat(e.target.value) || 0)}
+                onChange={handleMinRangeChange}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
                 step="0.00000001"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Max Range (Ratio)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Max Range (Ratio) {isManualRange && <span className="text-xs text-green-400">(Manual)</span>}
+              </label>
               <input
                 type="number"
                 value={maxRange}
-                onChange={(e) => setMaxRange(parseFloat(e.target.value) || 0)}
+                onChange={handleMaxRangeChange}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
                 step="0.00000001"
               />
