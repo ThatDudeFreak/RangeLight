@@ -26,11 +26,13 @@ export default function RangeLight() {
   const [currentPrice, setCurrentPrice] = useState(0);
   const [minRange, setMinRange] = useState(0);
   const [maxRange, setMaxRange] = useState(0);
+  const [minRangeInput, setMinRangeInput] = useState(''); // Raw input value
+  const [maxRangeInput, setMaxRangeInput] = useState(''); // Raw input value
   const [priceHistory, setPriceHistory] = useState([]);
   const [isInRange, setIsInRange] = useState(true);
   const [nearEdgeWarning, setNearEdgeWarning] = useState(false);
-  const [selectedToken0, setSelectedToken0] = useState('WHLP');
-  const [selectedToken1, setSelectedToken1] = useState('WHYPE');
+  const [selectedToken0, setSelectedToken0] = useState('WHYPE');
+  const [selectedToken1, setSelectedToken1] = useState('USD₮0');
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [token0Price, setToken0Price] = useState(0);
@@ -97,6 +99,8 @@ export default function RangeLight() {
     const newMax = price * (1 + rangePercent);
     setMinRange(newMin);
     setMaxRange(newMax);
+    setMinRangeInput(newMin.toString());
+    setMaxRangeInput(newMax.toString());
     setIsManualRange(false);
     console.log(`Setting range for price ${price}: ${newMin} - ${newMax}`);
   };
@@ -172,15 +176,32 @@ export default function RangeLight() {
     // Clear range - will be set when price is fetched
     setMinRange(0);
     setMaxRange(0);
+    setMinRangeInput('');
+    setMaxRangeInput('');
     // Reset flags
     setIsManualRange(false);
     setRangeInitialized(false);
     setIsEditingRange(false);
     // Reset connection status
     setConnectionStatus('disconnected');
-  }, [selectedToken0, selectedToken1]);
-
-  // Price update loop with refresh animation
+  // Sync input values with range values when not editing
+  useEffect(() => {
+    if (!isEditingRange) {
+      if (rangeInitialized || isManualRange) {
+        // Format the display of numbers but keep full precision
+        if (minRange > 0) {
+          setMinRangeInput(minRange.toString());
+        } else {
+          setMinRangeInput('');
+        }
+        if (maxRange > 0) {
+          setMaxRangeInput(maxRange.toString());
+        } else {
+          setMaxRangeInput('');
+        }
+      }
+    }
+  }, [minRange, maxRange, isEditingRange, rangeInitialized, isManualRange]);
   useEffect(() => {
     let isMounted = true;
     
@@ -261,28 +282,52 @@ export default function RangeLight() {
   // Handle manual range input
   const handleMinRangeChange = (e) => {
     const value = e.target.value;
-    if (value === '') {
-      setMinRange(0);
-    } else {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue)) {
-        setMinRange(numValue);
-        setIsManualRange(true);
-      }
-    }
+    // Allow any input while typing, including partial decimals like "0."
+    setMinRangeInput(value);
+    setIsManualRange(true);
   };
 
   const handleMaxRangeChange = (e) => {
     const value = e.target.value;
-    if (value === '') {
-      setMaxRange(0);
+    // Allow any input while typing, including partial decimals like "0."
+    setMaxRangeInput(value);
+    setIsManualRange(true);
+  };
+
+  const handleMinRangeBlur = () => {
+    // Try to parse the input value
+    if (minRangeInput.trim() === '') {
+      setMinRange(0);
+      setMinRangeInput('');
     } else {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue)) {
-        setMaxRange(numValue);
-        setIsManualRange(true);
+      const numValue = parseFloat(minRangeInput);
+      if (!isNaN(numValue) && numValue >= 0) {
+        setMinRange(numValue);
+        // Keep the user's input as-is
+      } else {
+        // Reset to current value if invalid
+        setMinRangeInput(minRange > 0 ? minRange.toString() : '');
       }
     }
+    setIsEditingRange(false);
+  };
+
+  const handleMaxRangeBlur = () => {
+    // Try to parse the input value
+    if (maxRangeInput.trim() === '') {
+      setMaxRange(0);
+      setMaxRangeInput('');
+    } else {
+      const numValue = parseFloat(maxRangeInput);
+      if (!isNaN(numValue) && numValue >= 0) {
+        setMaxRange(numValue);
+        // Keep the user's input as-is
+      } else {
+        // Reset to current value if invalid
+        setMaxRangeInput(maxRange > 0 ? maxRange.toString() : '');
+      }
+    }
+    setIsEditingRange(false);
   };
 
   return (
@@ -434,6 +479,8 @@ export default function RangeLight() {
                       // Clear any stale range values
                       setMinRange(0);
                       setMaxRange(0);
+                      setMinRangeInput('');
+                      setMaxRangeInput('');
                       setIsManualRange(false);
                       setRangeInitialized(false);
                       setIsEditingRange(false);
@@ -573,14 +620,15 @@ export default function RangeLight() {
                 Min Range (Ratio) {isManualRange && <span className="text-xs text-green-400">(Manual)</span>}
               </label>
               <input
-                type="number"
-                value={minRange === 0 ? '' : minRange}
+                type="text"
+                value={minRangeInput}
                 onChange={handleMinRangeChange}
                 onFocus={() => setIsEditingRange(true)}
-                onBlur={() => setIsEditingRange(false)}
+                onBlur={handleMinRangeBlur}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
-                step="0.00000001"
                 placeholder="Enter min range"
+                autoComplete="off"
+                inputMode="decimal"
               />
             </div>
             <div>
@@ -588,14 +636,14 @@ export default function RangeLight() {
                 Max Range (Ratio) {isManualRange && <span className="text-xs text-green-400">(Manual)</span>}
               </label>
               <input
-                type="number"
-                value={maxRange === 0 ? '' : maxRange}
+                type="text"
+                value={maxRangeInput}
                 onChange={handleMaxRangeChange}
                 onFocus={() => setIsEditingRange(true)}
-                onBlur={() => setIsEditingRange(false)}
+                onBlur={handleMaxRangeBlur}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
-                step="0.00000001"
                 placeholder="Enter max range"
+                autoComplete="off"
               />
             </div>
           </div>
