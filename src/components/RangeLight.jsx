@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Pause } from 'lucide-react';
 
 export default function RangeLight() {
   // Pool addresses for direct DEX data (Hyperswap & Hybra)
@@ -39,6 +39,7 @@ export default function RangeLight() {
   const [refreshProgress, setRefreshProgress] = useState(0);
   const [isManualRange, setIsManualRange] = useState(false); // Track if user has manually set range
   const [rangeInitialized, setRangeInitialized] = useState(false); // Track if range has been auto-set
+  const [isEditingRange, setIsEditingRange] = useState(false); // Track if user is actively editing
   
   const [availableTokens] = useState({
     'HYPE': { symbol: 'HYPE', address: '0x5555555555555555555555555555555555555555', decimals: 18 },
@@ -146,7 +147,8 @@ export default function RangeLight() {
         // Only set aggressive range if:
         // 1. Range hasn't been initialized yet
         // 2. User hasn't manually set the range
-        if (!rangeInitialized && !isManualRange && ratio > 0) {
+        // 3. User isn't actively editing the range
+        if (!rangeInitialized && !isManualRange && !isEditingRange && ratio > 0) {
           setAggressiveRange(ratio);
           setRangeInitialized(true);
         }
@@ -173,6 +175,7 @@ export default function RangeLight() {
     // Reset flags
     setIsManualRange(false);
     setRangeInitialized(false);
+    setIsEditingRange(false);
     // Reset connection status
     setConnectionStatus('disconnected');
   }, [selectedToken0, selectedToken1]);
@@ -183,7 +186,7 @@ export default function RangeLight() {
     
     // Initial fetch
     const fetchData = async () => {
-      if (isMounted) {
+      if (isMounted && !isEditingRange) {
         await fetchTokenPrices();
       }
     };
@@ -192,15 +195,19 @@ export default function RangeLight() {
     
     // Set up interval with progress animation
     const interval = setInterval(() => {
-      fetchData();
+      if (!isEditingRange) {
+        fetchData();
+      }
     }, priceConfig.updateInterval);
     
     // Update refresh progress
     const progressInterval = setInterval(() => {
-      setRefreshProgress((prev) => {
-        if (prev >= 100) return 0;
-        return prev + (100 / (priceConfig.updateInterval / 50)); // Complete in updateInterval ms
-      });
+      if (!isEditingRange) {
+        setRefreshProgress((prev) => {
+          if (prev >= 100) return 0;
+          return prev + (100 / (priceConfig.updateInterval / 50)); // Complete in updateInterval ms
+        });
+      }
     }, 50);
     
     return () => {
@@ -208,7 +215,7 @@ export default function RangeLight() {
       clearInterval(interval);
       clearInterval(progressInterval);
     };
-  }, [selectedToken0, selectedToken1]);
+  }, [selectedToken0, selectedToken1, isEditingRange]);
 
   // Check if in range with dynamic sensitivity
   useEffect(() => {
@@ -253,18 +260,28 @@ export default function RangeLight() {
 
   // Handle manual range input
   const handleMinRangeChange = (e) => {
-    const value = parseFloat(e.target.value) || 0;
-    setMinRange(value);
-    if (value > 0) {
-      setIsManualRange(true);
+    const value = e.target.value;
+    if (value === '') {
+      setMinRange(0);
+    } else {
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue)) {
+        setMinRange(numValue);
+        setIsManualRange(true);
+      }
     }
   };
 
   const handleMaxRangeChange = (e) => {
-    const value = parseFloat(e.target.value) || 0;
-    setMaxRange(value);
-    if (value > 0) {
-      setIsManualRange(true);
+    const value = e.target.value;
+    if (value === '') {
+      setMaxRange(0);
+    } else {
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue)) {
+        setMaxRange(numValue);
+        setIsManualRange(true);
+      }
     }
   };
 
@@ -350,24 +367,31 @@ export default function RangeLight() {
                       stroke="currentColor"
                       strokeWidth="2"
                       fill="none"
-                      className="text-green-400"
+                      className={isEditingRange ? "text-yellow-400" : "text-green-400"}
                       strokeDasharray={`${2 * Math.PI * 10}`}
                       strokeDashoffset={`${2 * Math.PI * 10 * (1 - refreshProgress / 100)}`}
                       style={{ transition: 'stroke-dashoffset 0.05s linear' }}
                     />
                   </svg>
-                  {refreshProgress >= 99 && (
+                  {refreshProgress >= 99 && !isEditingRange && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <RefreshCw className="w-3 h-3 text-green-400 animate-pulse" />
                     </div>
                   )}
+                  {isEditingRange && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Pause className="w-3 h-3 text-yellow-400" />
+                    </div>
+                  )}
                 </div>
                 <div className={`w-2 h-2 rounded-full ${
+                  isEditingRange ? 'bg-yellow-400' :
                   connectionStatus === 'connected' ? 'bg-green-400' : 
                   connectionStatus === 'error' ? 'bg-red-400' : 'bg-gray-400'
                 }`} />
                 <span className="text-xs sm:text-sm text-gray-400">
-                  {connectionStatus === 'connected' ? 'Live' : 
+                  {isEditingRange ? 'Paused (Editing)' :
+                   connectionStatus === 'connected' ? 'Live' : 
                    connectionStatus === 'error' ? 'Error' : 'Connecting...'}
                 </span>
               </div>
@@ -375,6 +399,7 @@ export default function RangeLight() {
             <div className="flex items-center gap-4 self-end sm:self-auto">
               <button
                 onClick={() => {
+                  setIsEditingRange(false);
                   setAggressiveRange(currentPrice);
                   fetchTokenPrices();
                 }}
@@ -411,6 +436,7 @@ export default function RangeLight() {
                       setMaxRange(0);
                       setIsManualRange(false);
                       setRangeInitialized(false);
+                      setIsEditingRange(false);
                     }}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                       selectedToken0 === token0 && selectedToken1 === token1
@@ -548,10 +574,13 @@ export default function RangeLight() {
               </label>
               <input
                 type="number"
-                value={minRange}
+                value={minRange === 0 ? '' : minRange}
                 onChange={handleMinRangeChange}
+                onFocus={() => setIsEditingRange(true)}
+                onBlur={() => setIsEditingRange(false)}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
                 step="0.00000001"
+                placeholder="Enter min range"
               />
             </div>
             <div>
@@ -560,10 +589,13 @@ export default function RangeLight() {
               </label>
               <input
                 type="number"
-                value={maxRange}
+                value={maxRange === 0 ? '' : maxRange}
                 onChange={handleMaxRangeChange}
+                onFocus={() => setIsEditingRange(true)}
+                onBlur={() => setIsEditingRange(false)}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
                 step="0.00000001"
+                placeholder="Enter max range"
               />
             </div>
           </div>
@@ -614,7 +646,7 @@ export default function RangeLight() {
           
           <div className="px-2 py-1 bg-blue-900/20 border border-blue-600 rounded text-xs">
             <span className="text-blue-400">
-              <strong>Auto-Range:</strong> Automatically sets 2% aggressive range when switching pairs. Click refresh to reset range to current price ±2%.
+              <strong>Auto-Range:</strong> Automatically sets 2% aggressive range when switching pairs. Click refresh to reset range to current price ±2%. Updates pause while editing range values.
             </span>
           </div>
         </div>
